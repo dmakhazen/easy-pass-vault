@@ -1,0 +1,45 @@
+# Actual user data belongs outside the repository
+/private/
+/vaults/
+/backups/
+*.epv
+*.kdbx
+*.vault
+*.key
+*.keyx
+*.pem
+*.pfx
+*.p12
+*.bak
+*.backup
+*.tmp
+*.epv-lock
+*.dmp
+*.log
+.env
+.env.*
+secrets.*
+credentials.*
+# Build and editor files
+bin/
+obj/
+dist/
+node_modules/
+.vs/
+.idea/
+*.user
+*.suo
+Thumbs.db
+Desktop.ini
+
+# Local development SDK and downloaded dependencies
+.tools/
+.artifacts/
+.nuget/
+.dotnet-home/
+TestResults/
+
+# Local project notes, working instructions and UI mockups
+/AGENTS.md
+/REQUIREMENTS.md
+/prototype/

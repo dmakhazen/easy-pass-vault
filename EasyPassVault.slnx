@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EasyPassVault.App/EasyPassVault.App.csproj" />
+    <Project Path="src/EasyPassVault.Core/EasyPassVault.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EasyPassVault.Tests/EasyPassVault.Tests.csproj" />
+    <Project Path="tests/EasyPassVault.UiTests/EasyPassVault.UiTests.csproj" />
+  </Folder>
+</Solution>

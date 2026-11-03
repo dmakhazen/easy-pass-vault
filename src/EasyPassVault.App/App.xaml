@@ -1,0 +1,12 @@
+<Application x:Class="EasyPassVault.App.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" StartupUri="MainWindow.xaml">
+ <Application.Resources>
+  <SolidColorBrush x:Key="Green" Color="#2F7059"/>
+  <Style TargetType="Window"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="#263832"/><Setter Property="Background" Value="#FAFBF8"/></Style>
+  <Style TargetType="Button"><Setter Property="Padding" Value="12,8"/><Setter Property="Margin" Value="3"/><Setter Property="Background" Value="#F2F5EF"/><Setter Property="Foreground" Value="#263832"/><Setter Property="BorderBrush" Value="#D6DFD5"/><Setter Property="Cursor" Value="Hand"/></Style>
+  <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="{StaticResource Green}"/><Setter Property="Foreground" Value="White"/></Style>
+  <Style TargetType="TextBox"><Setter Property="Padding" Value="10,8"/><Setter Property="Background" Value="#FAFBF8"/><Setter Property="BorderBrush" Value="#D6DFD5"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
+  <Style TargetType="PasswordBox"><Setter Property="Padding" Value="10,8"/><Setter Property="Background" Value="#FAFBF8"/><Setter Property="BorderBrush" Value="#D6DFD5"/></Style>
+  <Style TargetType="ListBox"><Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="Transparent"/><Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/></Style>
+  <Style TargetType="ListBoxItem"><Setter Property="Padding" Value="12"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="SelectionBorder" Background="Transparent" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="SelectionBorder" Property="Background" Value="#E1EADE"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="SelectionBorder" Property="Background" Value="#ECF1E8"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+ </Application.Resources>
+</Application>

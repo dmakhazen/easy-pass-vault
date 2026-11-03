@@ -1,0 +1,13 @@
+<!-- Selected concept 7: flat document + padlock. Master vector, transparent canvas. -->
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+ <DrawingImage.Drawing>
+  <DrawingGroup>
+   <GeometryDrawing Brush="Transparent" Geometry="M0,0 H256 V256 H0 Z"/>
+   <GeometryDrawing Brush="#226549" Geometry="M54,10 H164 L226,72 V222 Q226,246 202,246 H54 Q30,246 30,222 V34 Q30,10 54,10 Z"/>
+   <GeometryDrawing Brush="#F8F4E9" Geometry="M164,10 V58 Q164,72 178,72 H226 Z"/>
+   <GeometryDrawing Brush="#D5AD45" Geometry="M92,150 V130 C92,108 108,96 130,96 C152,96 168,108 168,130 V150 H153 V130 C153,117 144,111 130,111 C116,111 107,117 107,130 V150 Z"/>
+   <GeometryDrawing Brush="#D5AD45" Geometry="M92,142 H168 Q182,142 182,156 V206 Q182,220 168,220 H92 Q78,220 78,206 V156 Q78,142 92,142 Z"/>
+   <GeometryDrawing Brush="#226549" Geometry="M135,178 L140,199 H120 L125,178 A11,11 0 1 1 135,178 Z"/>
+  </DrawingGroup>
+ </DrawingImage.Drawing>
+</DrawingImage>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup>
+  <TargetFramework>net10.0-windows</TargetFramework>
+  <AssemblyName>KeePassLib.Standard</AssemblyName>
+  <Nullable>disable</Nullable>
+  <ImplicitUsings>disable</ImplicitUsings>
+  <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  <EnableNETAnalyzers>false</EnableNETAnalyzers>
+  <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  <!-- Use upstream release semantics in all configurations: debug assertions during
+       wrong-password cleanup terminate modern .NET processes instead of throwing. -->
+  <DefineConstants>TRACE;NETCOREAPP</DefineConstants>
+  <DisableImplicitConfigurationDefines>true</DisableImplicitConfigurationDefines>
+ </PropertyGroup>
+ <ItemGroup>
+  <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.14"/>
+  <PackageReference Include="SharpZipLib" Version="1.4.2"/>
+  <PackageReference Include="System.Drawing.Common" Version="10.0.14"/>
+  <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.14"/>
+  <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14"/>
+ </ItemGroup>
+</Project>
