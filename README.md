@@ -1,73 +1,68 @@
 # easy-pass-vault
 
-Локальное Windows-приложение для паролей и текстовых заметок. C# / WPF / .NET 10. Интернет, телефон и аккаунт для работы не нужны. Android пока не реализован.
+[English](#english) · [Русский](#русский)
 
-## Поведение
+## English
 
-- Один переносной зашифрованный файл `.kdbx`, главный пароль при каждом открытии.
-- Папки и категории «Записи» (логин, пароль, сайт, заметка) и «Файлы» (свободный текст внутри хранилища).
-- Справа редактор без вкладок. Ввод меняет черновик. Кнопка «Сохранить и зашифровать» или Ctrl+S записывает изменения в зашифрованный файл.
-- При переходе с изменениями можно сохранить, отбросить их или остаться. Пустой новый элемент не добавляется.
-- Папки можно создать, переименовать и удалить, если они пусты. Корневую папку удалить нельзя.
-- Кнопка «Закрыть файл хранилища» или Ctrl+L закрывает хранилище и возвращает на стартовый экран. Автоблокировка и очистка буфера обмена пока не входят в версию.
-- Восстановления забытого пароля и скрытых ключей нет. Файл не привязан к учётной записи Windows.
+Offline password and text vault for Windows x64. [Download the latest release](https://github.com/dmakhazen/easy-pass-vault/releases/latest), extract `easy-pass-vault-win-x64.zip` and run `easy-pass-vault.exe`.
 
-## Разработка
+- Create or open a vault with a master password. Use **Save and encrypt** or **Ctrl+S** to write changes. A forgotten master password cannot be recovered.
+- Expand folders in the sidebar. **New folder** creates a folder inside the selected one. Select **All folders** to create one at the top level.
+- **Save dated version** opens a save dialog with a suggested name such as `personal-2026-11-03.kdbx`. Choose the folder and name. The saved file becomes active. The app protects other files with the same name from being overwritten.
+- **Export text** writes all saved entries, including passwords, to an unencrypted TXT file in JSON format. The header shows the last save time recorded inside the vault.
 
-SDK установлен в `.tools/dotnet`. Если его нет, установку инструментов нужно согласовать отдельно. Скрипты ничего не устанавливают автоматически.
+### How encryption works
 
-PowerShell из корня проекта:
+```mermaid
+flowchart LR
+    P["Master password + random salt"] --> K["Argon2id derives key material"]
+    D["Entries, notes and save time"] --> E["KeePassLib encrypts and authenticates data"]
+    K --> E
+    E --> T["Encrypted temporary file"]
+    T --> F["Atomic write to .kdbx"]
+```
+
+New vaults use AES-256 and HMAC authentication in KDBX 4. The app supports uncompressed KDBX 4.x with Argon2id, up to 32 MB. Compatibility with other clients has yet to be verified. The app has not undergone an independent security audit.
+
+[Upstream KeePassLib.Standard repository](https://github.com/werdes/KeePassLib.Standard) · [KDBX 4 specification](https://keepass.info/help/kb/kdbx.html) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+### Build and test
+
+Use the .NET SDK specified in `global.json`. Run these PowerShell commands from the project root:
 
 ```powershell
 . ./scripts/Environment.ps1
 & $dotnetExe restore src/EasyPassVault.App/EasyPassVault.App.csproj --configfile NuGet.Config
 & $dotnetExe restore tests/EasyPassVault.Tests/EasyPassVault.Tests.csproj --configfile NuGet.Config
 & $dotnetExe restore tests/EasyPassVault.UiTests/EasyPassVault.UiTests.csproj --configfile NuGet.Config
-& $dotnetExe build src/EasyPassVault.App/EasyPassVault.App.csproj --no-restore
 ./scripts/Test.ps1
 ./scripts/Publish.ps1
 ```
 
-NuGet-кэш, CLI home и временные файлы сборки направлены внутрь проекта. Скрипт отключает создание HTTPS-сертификата и добавление глобального PATH. Восстановление пакетов выполняется только явно.
+The portable EXE is written to `.artifacts/portable/win-x64`. Pushes to `main` or `master` trigger a GitHub release build.
 
-Результат публикации: `.artifacts/portable/win-x64/easy-pass-vault.exe`. Предназначен для Windows x64 с поддержкой .NET 10. Запуск на чистой машине без SDK нужно проверять отдельно.
+## Русский
 
-При push в `main` или `master` GitHub Actions собирает portable-версию для Windows x64 и проверяет её запуск. После успешной сборки в **Releases** появляется ZIP `easy-pass-vault-win-x64.zip`. Распакуйте его и запустите `easy-pass-vault.exe`.
+Офлайн-хранилище паролей и текстовых заметок для Windows x64. Скачайте `easy-pass-vault-win-x64.zip` из [последнего релиза](https://github.com/dmakhazen/easy-pass-vault/releases/latest), распакуйте архив и запустите `easy-pass-vault.exe`.
 
-Single-file EXE включает среду выполнения. При запуске нативные компоненты могут извлекаться в служебный каталог .NET. Для тестового запуска задавайте переменную процесса `DOTNET_BUNDLE_EXTRACT_BASE_DIR` внутри проекта. Извлекаются библиотеки, не открытые данные хранилища.
+- Создайте или откройте хранилище с главным паролем. Для записи правок нажмите **«Сохранить и зашифровать»** или **Ctrl+S**. Забытый главный пароль восстановить нельзя.
+- Раскрывайте ветки дерева слева. **«Новая папка»** создаёт вложенную папку внутри выбранной. Для верхнего уровня выберите **«Все папки»**.
+- **«Сохранить с датой»** открывает окно выбора папки и имени, предлагая имя вроде `personal-2026-11-03.kdbx`. Сохранённая версия становится активной. Другие файлы с тем же именем защищены от перезаписи.
+- **«Экспорт в текст»** записывает все сохранённые записи, включая пароли, в незашифрованный TXT в формате JSON. В шапке видна дата последнего сохранения из самого хранилища.
 
-## Формат
+### Как работает шифрование
 
-KDBX 4.x, Argon2id (новые файлы: 64 МБ, 3 прохода, 2 потока), стандартное шифрование KDBX средствами KeePassLib. Предел файла — 32 МБ. До расшифровки проверяются ограничения KDF: до 256 МБ, 10 проходов и 8 потоков. KDBX с другими KDF, дополнительными параметрами или сжатием пока не поддерживаются и не конвертируются автоматически.
+```mermaid
+flowchart LR
+    P["Главный пароль + случайная соль"] --> K["Argon2id получает ключевой материал"]
+    D["Записи, заметки и дата сохранения"] --> E["KeePassLib шифрует и аутентифицирует данные"]
+    K --> E
+    E --> T["Зашифрованный временный файл"]
+    T --> F["Атомарная запись .kdbx"]
+```
 
-Совместимость с другими клиентами требует отдельной проверки. Текстовые файлы — KDBX-записи с полем `easy-pass-vault:kind=text`; другой клиент может показать их как обычные записи с заметками.
+Новые хранилища используют AES-256 и HMAC в формате KDBX 4. Поддерживается KDBX 4.x с Argon2id без сжатия, до 32 МБ. Совместимость с другими клиентами пока не проверена. Приложение не проходило независимый аудит безопасности.
 
-Неверный пароль и изменение шифротекста дают общее сообщение: надёжно различить эти причины при отказе проверки подлинности нельзя.
+[Исходный репозиторий KeePassLib.Standard](https://github.com/werdes/KeePassLib.Standard) · [Спецификация KDBX 4](https://keepass.info/help/kb/kdbx.html) · [Сторонние компоненты и лицензии](THIRD_PARTY_NOTICES.md)
 
-## Сохранение
-
-Изменение применяется к отдельной копии базы в памяти. Результат шифруется библиотекой, записывается во временный файл рядом с исходным, сбрасывается на диск и заменяет оригинал через `File.Replace`. Временный файл содержит только шифротекст. Создание нового хранилища не перезаписывает существующий файл.
-
-Хэш оригинала проверяется перед записью и заменой. Файловый замок координирует экземпляры нашего приложения. Другие приложения могут игнорировать замок: абсолютная защита от гонки с произвольным внешним редактором не гарантируется. При ошибке подтверждённая база в памяти сохраняется, черновик остаётся в редакторе.
-
-Автоматических резервных копий пока нет. Можно самостоятельно копировать закрытый зашифрованный файл. Отказ носителя и отключение питания требуют отдельных проверок на поддерживаемых файловых системах.
-
-## Проверки и ограничения
-
-Консольные интеграционные проверки в `tests` используют только вымышленные данные. Файлы создаются в игнорируемой `.artifacts/tests`. Есть проверка открытия в новом процессе. WPF-проверки в `tests/EasyPassVault.UiTests` проверяют ручное сохранение, отмену, пустой черновик, оба типа элементов, повторное открытие и очистку при блокировке. Они рендерят собственное дерево интерфейса вне экрана в `.artifacts/ui-tests`; экран пользователя не захватывается.
-
-Используется исходная библиотека из `vendor/KeePassLib`, а не бинарный NuGet-пакет адаптации. Временная защита памяти создаётся напрямую через `EphemeralDataProtectionProvider`, без передачи пути к профилю и настройки дискового хранилища ключей. Исходная адаптация тоже выбирала временный провайдер; утверждать, что она обязательно записывала ключи в профиль, было бы неверно. Изменения перечислены в `vendor/KeePassLib/CHANGES.md`.
-
-`easy-pass-vault.exe --verify-startup` проверяет загрузку portable-хоста и завершает процесс без окна и обращения к пользовательским хранилищам. Для полностью локальной проверки сначала подключите `scripts/Environment.ps1`, задающий каталог извлечения библиотек внутри проекта.
-
-Секреты не пишутся в логи. Список не извлекает пароли до открытия редактора. При блокировке ссылки на записи и поля очищаются, но полное удаление всех копий строк из управляемой памяти не гарантируется.
-
-Версия разработки не проходила независимый аудит. Она не защищает от вредоносного ПО на скомпрометированном компьютере.
-
-Проверено 2026-11-02: 14 интеграционных сценариев и WPF-проверки прошли; portable EXE загрузился с `--verify-startup` и завершился с кодом 0. Проверки выполнены на текущем компьютере. Сторонние KeePass-клиенты, другая Windows-машина, аварийное выключение и съёмные носители пока не проверены. Часть исходного кода библиотеки использует устаревшие API и выдаёт предупреждения компилятора; криптографические реализации не переписывались для устранения этих предупреждений.
-
-## Иконка
-
-Выбранный дизайн №7 хранится как редактируемый вектор в `src/EasyPassVault.App/Assets/VaultIcon.xaml`. `vault.png` используется в интерфейсе, `vault.ico` встроен в EXE и назначен значком окна для панели задач. ICO содержит размеры 16, 20, 24, 32, 40, 48, 64, 128 и 256 пикселей с прозрачным фоном. Градиентов и теней нет.
-
-Чтобы пересоздать PNG и ICO после изменения вектора: восстановите `tools/IconBuilder/IconBuilder.csproj` с локальным NuGet.Config и выполните `scripts/Build-Icon.ps1`. Генератор использует штатный WPF и не устанавливает дополнительные программы.
+Для сборки и тестов используйте команды из [английского раздела](#build-and-test). Готовый EXE появится в `.artifacts/portable/win-x64`. Push в `main` или `master` запускает сборку релиза.

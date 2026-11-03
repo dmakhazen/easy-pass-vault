@@ -1,7 +1,10 @@
 namespace EasyPassVault.Core;
 
 public enum ItemKind { Login, Text }
-public sealed record FolderInfo(string Id, string Name);
+public sealed record FolderInfo(string Id, string Name, string? ParentId = null, string? LeafName = null)
+{
+    public string DisplayName => LeafName ?? Name;
+}
 public sealed record VaultItem(string Id, string FolderId, ItemKind Kind, string Title,
     string Login = "", string Password = "", string Site = "", string Text = "")
 {

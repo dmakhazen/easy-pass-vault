@@ -1,4 +1,7 @@
 using System.Security.Cryptography;
+using System.Globalization;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using KeePassLib;
 using KeePassLib.Cryptography.KeyDerivation;
 using KeePassLib.Keys;
@@ -10,12 +13,16 @@ namespace EasyPassVault.Core;
 public sealed class VaultSession : IDisposable
 {
     private const string KindField = "easy-pass-vault:kind";
+    private const string SavedAtField = "easy-pass-vault:saved-at";
     private PwDatabase database;
     private byte[] snapshot;
     private byte[] fingerprint;
     private readonly AtomicVaultFile writer;
     private bool disposed;
-    public string FilePath { get; }
+    public string FilePath { get; private set; }
+    public DateTimeOffset? LastSavedAt =>
+        DateTimeOffset.TryParseExact(database.CustomData.Get(SavedAtField), "O",
+            CultureInfo.InvariantCulture, DateTimeStyles.None, out var savedAt) ? savedAt : null;
 
     private VaultSession(string path, PwDatabase db, byte[] data, AtomicVaultFile? fileWriter)
     { FilePath = Path.GetFullPath(path); database = db; snapshot = data; fingerprint = SHA256.HashData(data); writer = fileWriter ?? new(); }
@@ -72,6 +79,7 @@ public sealed class VaultSession : IDisposable
 
     private static byte[] Encode(PwDatabase db)
     {
+        db.CustomData.Set(SavedAtField, DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         using var stream = new MemoryStream();
         new KdbxFile(db).Save(stream, db.RootGroup, KdbxFormat.Default, null);
         return stream.ToArray();
@@ -86,7 +94,7 @@ public sealed class VaultSession : IDisposable
             void Visit(PwGroup group, string prefix)
             {
                 string name = prefix.Length == 0 ? group.Name : prefix + " / " + group.Name;
-                result.Add(new(group.Uuid.ToHexString(), name));
+                result.Add(new(group.Uuid.ToHexString(), name, group.ParentGroup.Uuid.ToHexString(), group.Name));
                 foreach (var child in group.Groups) Visit(child, name);
             }
             // Root entries from other clients remain accessible as well.
@@ -101,26 +109,83 @@ public sealed class VaultSession : IDisposable
         get
         {
             ThrowIfDisposed();
-            return database.RootGroup.GetEntries(true).Select(e => new VaultItem(e.Uuid.ToHexString(),
-                e.ParentGroup.Uuid.ToHexString(), e.Strings.ReadSafe(KindField) == "text" ? ItemKind.Text : ItemKind.Login,
-                e.Strings.ReadSafe(PwDefs.TitleField), e.Strings.ReadSafe(PwDefs.UserNameField),
-                "", e.Strings.ReadSafe(PwDefs.UrlField), e.Strings.ReadSafe(PwDefs.NotesField))).ToList();
+            return database.RootGroup.GetEntries(true).Select(e => ReadItem(e, includePassword: false)).ToList();
         }
     }
 
     public VaultItem GetItem(string id)
     {
         ThrowIfDisposed();
-        var item = Items.First(x => x.Id == id);
         var entry = database.RootGroup.GetEntries(true).First(e => e.Uuid.ToHexString() == id);
-        return item with { Password = entry.Strings.ReadSafe(PwDefs.PasswordField) };
+        return ReadItem(entry, includePassword: true);
     }
 
-    public void SaveItem(VaultItem item)
+    private static VaultItem ReadItem(PwEntry entry, bool includePassword) =>
+        new(entry.Uuid.ToHexString(), entry.ParentGroup.Uuid.ToHexString(),
+            entry.Strings.ReadSafe(KindField) == "text" ? ItemKind.Text : ItemKind.Login,
+            entry.Strings.ReadSafe(PwDefs.TitleField), entry.Strings.ReadSafe(PwDefs.UserNameField),
+            includePassword ? entry.Strings.ReadSafe(PwDefs.PasswordField) : "",
+            entry.Strings.ReadSafe(PwDefs.UrlField), entry.Strings.ReadSafe(PwDefs.NotesField));
+
+    public void ExportText(string path)
     {
-        if (!item.HasContent) throw new VaultException("Заполните хотя бы одно поле.");
+        ThrowIfDisposed();
+        path = Path.GetFullPath(path);
+        if (!Path.GetExtension(path).Equals(".txt", StringComparison.OrdinalIgnoreCase))
+            throw new VaultException("Выберите текстовый файл с расширением .txt.");
+        var folders = Folders.ToDictionary(folder => folder.Id, folder => folder.Name);
+        var items = database.RootGroup.GetEntries(true).Select(entry =>
+        {
+            var item = ReadItem(entry, includePassword: true);
+            return new { Folder = folders[item.FolderId], Kind = item.Kind.ToString(), item.Title, item.Login, item.Password, item.Site, item.Text };
+        });
+        var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        try
+        {
+            using (output)
+                JsonSerializer.Serialize(output, items, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+        }
+        catch
+        {
+            File.Delete(path);
+            throw;
+        }
+    }
+
+    public void SaveItem(VaultItem item) => SaveItems([item]);
+
+    public void SaveItems(IReadOnlyList<VaultItem> items, string? destinationPath = null)
+    {
+        if (items.Any(item => !item.HasContent))
+            throw new VaultException("Заполните хотя бы одно поле.");
+        string? destination = destinationPath is null ? null : Path.GetFullPath(destinationPath);
+        if (destination is not null && !Path.GetExtension(destination).Equals(".kdbx", StringComparison.OrdinalIgnoreCase))
+            throw new VaultException("Выберите файл с расширением .kdbx.");
         Commit(db =>
         {
+            foreach (var item in items) WriteItem(db, item);
+        }, string.Equals(destination, FilePath, StringComparison.OrdinalIgnoreCase) ? null : destination);
+    }
+
+    public string GetDatedVersionPath()
+    {
+        string name = Path.GetFileNameWithoutExtension(FilePath);
+        if (name.Length > 11 && name[^11] == '-' &&
+            DateOnly.TryParseExact(name[^10..], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+            name = name[..^11];
+        string date = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return Path.Combine(Path.GetDirectoryName(FilePath)!, $"{name}-{date}.kdbx");
+    }
+
+    public void SaveDatedVersion(VaultItem? pendingItem = null, string? destinationPath = null) =>
+        SaveItems(pendingItem is null ? [] : [pendingItem], destinationPath ?? GetDatedVersionPath());
+
+    private static void WriteItem(PwDatabase db, VaultItem item)
+    {
             var group = FindGroup(db, item.FolderId);
             var entry = db.RootGroup.GetEntries(true).FirstOrDefault(e => e.Uuid.ToHexString() == item.Id);
             if (entry is null)
@@ -137,7 +202,6 @@ public sealed class VaultSession : IDisposable
             entry.Strings.Set(PwDefs.NotesField, new ProtectedString(true, item.Text));
             entry.Strings.Set(KindField, new ProtectedString(false, item.Kind == ItemKind.Text ? "text" : "login"));
             entry.Touch(true);
-        });
     }
 
     public void DeleteItem(string id) => Commit(db =>
@@ -147,10 +211,14 @@ public sealed class VaultSession : IDisposable
         db.DeletedObjects.Add(new PwDeletedObject(entry.Uuid, DateTime.UtcNow));
     });
 
-    public void AddFolder(string name)
+    public void AddFolder(string name, string? parentId = null)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new VaultException("Введите название папки.");
-        Commit(db => db.RootGroup.AddGroup(new PwGroup(true, true, name.Trim(), PwIcon.Folder), true));
+        Commit(db =>
+        {
+            var parent = parentId is null ? db.RootGroup : FindGroup(db, parentId);
+            parent.AddGroup(new PwGroup(true, true, name.Trim(), PwIcon.Folder), true);
+        });
     }
 
     public void RenameFolder(string id, string name)
@@ -159,11 +227,32 @@ public sealed class VaultSession : IDisposable
         Commit(db => { var group = FindGroup(db, id); group.Name = name.Trim(); group.Touch(true); });
     }
 
+    public void MoveFolder(string id, string destinationId) => Commit(db =>
+    {
+        var folder = FindGroup(db, id);
+        var destination = FindGroup(db, destinationId);
+        if (folder == db.RootGroup || folder == destination || destination.IsContainedIn(folder))
+            throw new VaultException("Нельзя переместить корень, папку в себя или в её подпапку.");
+
+        var previousParent = folder.ParentGroup;
+        previousParent.Groups.Remove(folder);
+        destination.AddGroup(folder, true, true);
+        folder.PreviousParentGroup = previousParent.Uuid;
+    });
+
+    public bool IsFolderEmpty(string id)
+    {
+        ThrowIfDisposed();
+        return IsFolderEmpty(FindGroup(database, id));
+    }
+
+    private static bool IsFolderEmpty(PwGroup group) => group.Entries.UCount == 0 && group.Groups.UCount == 0;
+
     public void DeleteFolder(string id) => Commit(db =>
     {
         var group = FindGroup(db, id);
         if (group == db.RootGroup) throw new VaultException("Корневую папку удалить нельзя.");
-        if (group.Entries.UCount != 0 || group.Groups.UCount != 0) throw new VaultException("Сначала удалите или переместите содержимое папки.");
+        if (!IsFolderEmpty(group)) throw new VaultException("Сначала удалите или переместите содержимое папки.");
         group.ParentGroup.Groups.Remove(group);
         db.DeletedObjects.Add(new PwDeletedObject(group.Uuid, DateTime.UtcNow));
     });
@@ -172,7 +261,7 @@ public sealed class VaultSession : IDisposable
         db.RootGroup.Uuid.ToHexString() == id ? db.RootGroup :
         db.RootGroup.GetGroups(true).FirstOrDefault(g => g.Uuid.ToHexString() == id) ?? throw new VaultException("Папка не найдена.");
 
-    private void Commit(Action<PwDatabase> change)
+    private void Commit(Action<PwDatabase> change, string? newPath = null)
     {
         ThrowIfDisposed();
         // Work on a separate decrypted database. IO failure never commits UI edits in memory.
@@ -182,8 +271,10 @@ public sealed class VaultSession : IDisposable
             change(candidate);
             byte[] bytes = Encode(candidate);
             KdbxGuard.Validate(bytes);
-            writer.Write(FilePath, bytes, fingerprint);
+            string destination = newPath ?? FilePath;
+            writer.Write(destination, bytes, newPath is null ? fingerprint : null);
             database.Close(); database = candidate;
+            FilePath = destination;
             CryptographicOperations.ZeroMemory(snapshot);
             snapshot = bytes; fingerprint = SHA256.HashData(bytes);
         }

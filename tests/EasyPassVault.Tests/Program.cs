@@ -49,6 +49,42 @@ try
             Check(!Encoding.Unicode.GetString(bytes).Contains(value, StringComparison.Ordinal), "Plaintext leaked (UTF16)");
         }
     });
+    Test("dated save preserves prior version and stores its own save time", () =>
+    {
+        string prior = Path.Combine(root, "version-2000-01-01.kdbx");
+        File.Copy(path, prior);
+        byte[] before = File.ReadAllBytes(prior);
+        using var version = VaultSession.Open(prior, password);
+        var edited = login with { Title = "SYNTHETIC VERSION" };
+        version.SaveDatedVersion(edited);
+        Check(Path.GetFileName(version.FilePath).StartsWith("version-" + DateTime.Today.ToString("yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture)), "Date suffix was not replaced");
+        Check(before.SequenceEqual(File.ReadAllBytes(prior)), "Previous version was changed");
+        using var reopened = VaultSession.Open(version.FilePath, password);
+        Check(reopened.GetItem(loginId) == edited && reopened.LastSavedAt is not null &&
+            reopened.LastSavedAt == version.LastSavedAt, "Version changes or saved timestamp did not survive reopening");
+        using var collision = VaultSession.Open(prior, password);
+        Reject(() => collision.SaveDatedVersion(), "An unrelated dated file was overwritten");
+        Check(collision.FilePath == prior, "Failed save switched the active file");
+
+        string selectedFolder = Path.Combine(root, "chosen-version-folder");
+        Directory.CreateDirectory(selectedFolder);
+        string selectedPath = Path.Combine(selectedFolder, Path.GetFileName(version.GetDatedVersionPath()));
+        version.SaveDatedVersion(destinationPath: selectedPath);
+        Check(version.FilePath == selectedPath, "Save ignored the selected path");
+        using var moved = VaultSession.Open(selectedPath, password);
+        Check(moved.GetItem(loginId) == edited, "The file saved at the selected path lost its contents");
+    });
+    Test("plain text export includes saved contents and refuses overwrites", () =>
+    {
+        string export = Path.Combine(root, "synthetic-export.txt");
+        session.ExportText(export);
+        using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(export));
+        var exported = document.RootElement.EnumerateArray().ToArray();
+        Check(exported.Any(entry => entry.GetProperty("Password").GetString() == login.Password), "Export omitted the saved password");
+        Check(exported.Any(entry => entry.GetProperty("Text").GetString() == text.Text), "Export omitted the saved note");
+        Reject(() => session.ExportText(export), "Existing export was overwritten");
+    });
     Test("wrong password rejects and leaves file intact", () =>
     {
         byte[] before = File.ReadAllBytes(path);
@@ -123,6 +159,21 @@ try
         session.DeleteItem(textId);
         using var reopened = VaultSession.Open(path, password);
         Check(reopened.Items.All(x => x.Id != textId) && reopened.GetItem(loginId) == login, "Deletion corrupted other entry");
+    });
+    Test("moving a folder preserves its subtree and rejects cycles", () =>
+    {
+        session.AddFolder("Synthetic destination");
+        session.AddFolder("Synthetic child", folder);
+        string destination = session.Folders.Single(f => f.DisplayName == "Synthetic destination").Id;
+        string childFolder = session.Folders.Single(f => f.DisplayName == "Synthetic child").Id;
+        Reject(() => session.MoveFolder(folder, childFolder), "Folder moved inside its own subtree");
+        Reject(() => session.MoveFolder(folder, folder), "Folder moved into itself");
+        Reject(() => session.MoveFolder(session.Folders[0].Id, destination), "Vault root was moved");
+        session.MoveFolder(folder, destination);
+        using var reopened = VaultSession.Open(path, password);
+        Check(reopened.Folders.Single(f => f.Id == folder).ParentId == destination, "Folder did not move");
+        Check(reopened.Folders.Single(f => f.Id == childFolder).ParentId == folder, "Nested folder was lost");
+        Check(reopened.GetItem(loginId) == login, "Record changed when moving its folder");
     });
     Test("vault reopens in a fresh process with no persisted memory keys", () =>
     {
