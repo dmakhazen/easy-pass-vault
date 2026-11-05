@@ -84,19 +84,29 @@ public partial class MainWindow : Window
         string? password = Prompt(T("Открытие хранилища"), T("Введите главный пароль"), secret: true);
         if (password is null) return;
         VaultSession? opened = null;
-        if (await Run(T("Открытие и проверка целостности…"), () => opened = VaultSession.Open(dialog.FileName, password)))
-        { session = opened; EnterWorkspace(); }
+        string? newer = null;
+        if (await Run(T("Открытие и проверка целостности…"), () =>
+            { opened = VaultSession.Open(dialog.FileName, password); newer = opened.NewerVersionPath; }))
+        {
+            session = opened; EnterWorkspace();
+            if (newer is not null)
+                MessageBox.Show(this, T("Это не последняя версия хранилища. В папке есть более новая: {0}.")
+                    .Replace("{0}", Path.GetFileName(newer)), "easy-pass-vault", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private async void CreateClick(object sender, RoutedEventArgs e)
     {
         var dialog = new SaveFileDialog { Filter = "KeePass (*.kdbx)|*.kdbx", DefaultExt = ".kdbx", FileName = "Personal.kdbx", OverwritePrompt = true };
         if (dialog.ShowDialog(this) != true) return;
-        if (File.Exists(dialog.FileName)) { ShowError(T("Файл уже существует. Выберите другое имя; существующее хранилище не перезаписано.")); return; }
+        string path;
+        try { path = VaultVersions.FirstPath(dialog.FileName, DateTime.Today); }
+        catch (VaultException ex) { ShowError(TranslateError(ex.Message)); return; }
+        if (File.Exists(path)) { ShowError(T("Файл уже существует. Выберите другое имя; существующее хранилище не перезаписано.")); return; }
         string? password = Prompt(T("Новое хранилище"), T("Придумайте главный пароль от 12 символов. Восстановить забытый пароль нельзя."), true, true);
         if (password is null) return;
         VaultSession? created = null;
-        if (await Run(T("Создание зашифрованного хранилища…"), () => created = VaultSession.Create(dialog.FileName, password)))
+        if (await Run(T("Создание зашифрованного хранилища…"), () => created = VaultSession.Create(path, password)))
         { session = created; EnterWorkspace(); }
     }
 
@@ -121,24 +131,11 @@ public partial class MainWindow : Window
         SavedAt.Text = session is null ? "" : session.LastSavedAt is { } savedAt
             ? T("Последнее сохранение: {0}").Replace("{0}", savedAt.ToLocalTime().ToString("g", UiCulture))
             : T("Дата сохранения неизвестна");
-    }
-
-    private async void SaveVersionClick(object sender, RoutedEventArgs e)
-    {
-        if (busy || session is null) return;
-        string suggestedPath = session.GetDatedVersionPath();
-        var dialog = new SaveFileDialog
-        {
-            Title = T("Сохранить с датой"),
-            Filter = "KeePass (*.kdbx)|*.kdbx",
-            DefaultExt = ".kdbx",
-            InitialDirectory = Path.GetDirectoryName(suggestedPath)!,
-            FileName = Path.GetFileName(suggestedPath),
-            OverwritePrompt = false
-        };
-        if (dialog.ShowDialog(this) != true) return;
-
-        await SaveChanges(dialog.FileName);
+        string? next = null;
+        try { next = session is null ? null : Path.GetFileName(session.NextVersionPath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or VaultException) { }
+        // TextBlock, not a string: WPF would treat the first "_" of the file name as an access key and hide it.
+        SaveVersionButton.Content = new TextBlock { Text = T("Создать новый файл и зашифровать в {0}").Replace("{0}", next ?? "…") };
     }
 
     private async void ExportClick(object sender, RoutedEventArgs e)
@@ -283,7 +280,7 @@ public partial class MainWindow : Window
 
     private void UpdateSaveState()
     {
-        SaveButton.IsEnabled = NeedsSaveDecision;
+        SaveButton.IsEnabled = SaveVersionButton.IsEnabled = NeedsSaveDecision;
         SaveState.Text = T(NeedsSaveDecision ? "Есть несохранённые изменения" : "Сохранено");
         SaveState.Foreground = (Brush)FindResource(NeedsSaveDecision ? "PendingSaveForeground" : "Green");
         SaveStateBadge.Background = NeedsSaveDecision ? (Brush)FindResource("PendingSaveBackground") : Brushes.Transparent;
@@ -325,12 +322,20 @@ public partial class MainWindow : Window
             pendingItems.Remove(draft.Id);
     }
 
-    private async Task<bool> SaveChanges(string? destinationPath = null)
+    private Task<bool> SaveChanges() => SaveCore(newVersion: false);
+
+    /// <summary>Writes all pending changes into the next {name}_{date}_v{N}.kdbx and switches to it.</summary>
+    private Task<bool> SaveNewVersionFile() => SaveCore(newVersion: true);
+
+    private async void SaveVersionClick(object sender, RoutedEventArgs e) => await SaveNewVersionFile();
+
+    private async Task<bool> SaveCore(bool newVersion)
     {
         if (busy || session is not { } vault) return false;
-        if (!NeedsSaveDecision && destinationPath is null) return true;
+        if (!NeedsSaveDecision) return true;
         var saving = pendingItems.Values.Select(pending => pending.Item).ToArray();
-        if (!await Run(T("Шифрование и безопасное сохранение…"), () => vault.SaveItems(saving, destinationPath))) return false;
+        if (!await Run(T("Шифрование и безопасное сохранение…"), () =>
+            { if (newVersion) vault.SaveNewVersion(saving); else vault.SaveItems(saving); })) return false;
         if (draft is not null && pendingItems.ContainsKey(draft.Id)) original = draft;
         pendingItems.Clear();
         RefreshLists();

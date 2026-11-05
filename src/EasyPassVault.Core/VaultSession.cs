@@ -158,31 +158,37 @@ public sealed class VaultSession : IDisposable
 
     public void SaveItem(VaultItem item) => SaveItems([item]);
 
-    public void SaveItems(IReadOnlyList<VaultItem> items, string? destinationPath = null)
+    /// <summary>Encrypts and writes the changes into the currently open file.</summary>
+    public void SaveItems(IReadOnlyList<VaultItem> items) => Commit(ItemsChange(items), newVersion: false);
+
+    /// <summary>
+    /// Encrypts the changes into a brand-new file {name}_{date}_v{N}.kdbx next to the current one and makes it active.
+    /// The current file is left untouched.
+    /// </summary>
+    public string SaveNewVersion(IReadOnlyList<VaultItem> items)
+    {
+        Commit(ItemsChange(items), newVersion: true);
+        return FilePath;
+    }
+
+    private static Action<PwDatabase> ItemsChange(IReadOnlyList<VaultItem> items)
     {
         if (items.Any(item => !item.HasContent))
             throw new VaultException("Заполните хотя бы одно поле.");
-        string? destination = destinationPath is null ? null : Path.GetFullPath(destinationPath);
-        if (destination is not null && !Path.GetExtension(destination).Equals(".kdbx", StringComparison.OrdinalIgnoreCase))
-            throw new VaultException("Выберите файл с расширением .kdbx.");
-        Commit(db =>
-        {
-            foreach (var item in items) WriteItem(db, item);
-        }, string.Equals(destination, FilePath, StringComparison.OrdinalIgnoreCase) ? null : destination);
+        return db => { foreach (var item in items) WriteItem(db, item); };
     }
 
-    public string GetDatedVersionPath()
+    /// <summary>The file the next <see cref="SaveNewVersion"/> would create today.</summary>
+    public string NextVersionPath
     {
-        string name = Path.GetFileNameWithoutExtension(FilePath);
-        if (name.Length > 11 && name[^11] == '-' &&
-            DateOnly.TryParseExact(name[^10..], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
-            name = name[..^11];
-        string date = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        return Path.Combine(Path.GetDirectoryName(FilePath)!, $"{name}-{date}.kdbx");
+        get { ThrowIfDisposed(); return VaultVersions.NextPath(FilePath, DateTime.Today); }
     }
 
-    public void SaveDatedVersion(VaultItem? pendingItem = null, string? destinationPath = null) =>
-        SaveItems(pendingItem is null ? [] : [pendingItem], destinationPath ?? GetDatedVersionPath());
+    /// <summary>A newer file of the same series, if one exists.</summary>
+    public string? NewerVersionPath
+    {
+        get { ThrowIfDisposed(); return VaultVersions.FindNewer(FilePath); }
+    }
 
     private static void WriteItem(PwDatabase db, VaultItem item)
     {
@@ -261,7 +267,7 @@ public sealed class VaultSession : IDisposable
         db.RootGroup.Uuid.ToHexString() == id ? db.RootGroup :
         db.RootGroup.GetGroups(true).FirstOrDefault(g => g.Uuid.ToHexString() == id) ?? throw new VaultException("Папка не найдена.");
 
-    private void Commit(Action<PwDatabase> change, string? newPath = null)
+    private void Commit(Action<PwDatabase> change, bool newVersion = false)
     {
         ThrowIfDisposed();
         // Work on a separate decrypted database. IO failure never commits UI edits in memory.
@@ -271,8 +277,16 @@ public sealed class VaultSession : IDisposable
             change(candidate);
             byte[] bytes = Encode(candidate);
             KdbxGuard.Validate(bytes);
-            string destination = newPath ?? FilePath;
-            writer.Write(destination, bytes, newPath is null ? fingerprint : null);
+            string destination = FilePath;
+            if (newVersion)
+            {
+                // A new file {name}_{date}_v{N}: nothing existing is overwritten, so an older
+                // version may also be saved this way to continue the series from it.
+                DateTime date = DateTime.Today;
+                destination = writer.WriteNew(VaultVersions.LockPath(FilePath),
+                    () => VaultVersions.NextPath(FilePath, date), bytes);
+            }
+            else writer.Write(FilePath, bytes, fingerprint);
             database.Close(); database = candidate;
             FilePath = destination;
             CryptographicOperations.ZeroMemory(snapshot);

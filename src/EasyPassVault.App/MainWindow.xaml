@@ -13,7 +13,7 @@
     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
      <StackPanel x:Name="VersionActions" Orientation="Horizontal" Visibility="Collapsed">
       <Button x:Name="SaveButton" Content="{DynamicResource Ui.25}" Click="SaveClick" Style="{StaticResource Primary}" IsEnabled="False"/>
-      <Button Content="{DynamicResource Ui.2}" Click="SaveVersionClick"/>
+      <Button x:Name="SaveVersionButton" Click="SaveVersionClick"/>
       <Border x:Name="VersionHelp" Background="#E1EADE" CornerRadius="12" Width="24" Height="24"
               Tag="{DynamicResource Ui.3}"
               VerticalAlignment="Center" Margin="4,0,8,0" Focusable="True" Cursor="Help"

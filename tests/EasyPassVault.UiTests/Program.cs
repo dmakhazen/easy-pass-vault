@@ -75,9 +75,35 @@ internal static class Program
                 Assert(textOnly.Items.Count == 0, "Navigating saved the drafts before confirmation");
                 Assert(Control<TextBlock>("EmptyEditor").Visibility == Visibility.Visible &&
                     Control<Button>("SaveButton").IsEnabled, "Global save unavailable without a selected item");
-                Await((Task)Call("SaveChanges", new object?[] { null })!);
+                Await((Task)Call("SaveChanges")!);
                 Assert(Control<TextBlock>("SaveState").Text == "Сохранено", "The clean save indicator is incorrect");
                 Assert(!Control<Button>("SaveButton").IsEnabled, "Save remained enabled after saving");
+                Assert(textOnly.FilePath == Path.GetFullPath(textOnlyPath), "Plain save switched to another file");
+                string today = DateTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                var versionButton = Control<Button>("SaveVersionButton");
+                string VersionLabel() => ((TextBlock)versionButton.Content).Text;
+                Assert(VersionLabel() == $"Создать новый файл и зашифровать в synthetic-text-only_{today}_v1.kdbx",
+                    "The new-version button does not show the next file name");
+                Assert(!versionButton.IsEnabled, "The new-version button is enabled without changes");
+                Await((Task)Call("SaveNewVersionFile")!);
+                Assert(textOnly.FilePath == Path.GetFullPath(textOnlyPath), "A new version was created without changes");
+
+                Call("SetCategory", new object?[] { null });
+                var list = Control<ListBox>("ItemList");
+                list.SelectedItem = list.Items.Cast<VaultItem>().First();
+                Assert(!versionButton.IsEnabled, "Selecting an item enabled the new-version button");
+                Control<TextBox>("TextField").Text += "\nEdited before a new version";
+                Assert(versionButton.IsEnabled && Control<Button>("SaveButton").IsEnabled,
+                    "An edit did not enable both save buttons");
+                Await((Task)Call("SaveNewVersionFile")!);
+                Assert(Path.GetFileName(textOnly.FilePath) == $"synthetic-text-only_{today}_v1.kdbx" &&
+                    Control<TextBlock>("VaultName").Text == Path.GetFileName(textOnly.FilePath) &&
+                    VersionLabel().EndsWith($"synthetic-text-only_{today}_v2.kdbx"),
+                    "Creating a new version did not switch files or update the button");
+                Assert(!versionButton.IsEnabled && !Control<Button>("SaveButton").IsEnabled,
+                    "Save buttons stayed enabled after creating a new version");
+                Assert(File.Exists(textOnlyPath), "The previous file disappeared");
+                textOnlyPath = textOnly.FilePath;
                 Await((Task)Call("LockVault")!);
             }
             using (var reopened = VaultSession.Open(textOnlyPath, password))
@@ -129,7 +155,7 @@ internal static class Program
             Control<TextBox>("SiteField").Text = "https://example.com";
             Assert(Control<Button>("SaveButton").IsEnabled, "Save disabled for nonempty draft");
             Assert(session.Items.Count == 0, "Typing saved automatically");
-            Await((Task)Call("SaveChanges", new object?[] { null })!);
+            Await((Task)Call("SaveChanges")!);
             Assert(session.Items.Count == 1, "Save did not persist login");
             Assert(Control<TextBlock>("SaveState").Text.Contains("Сохранено"), "Save state incorrect");
             Assert(!Control<Button>("RevertButton").IsEnabled, "Revert enabled without edits");
@@ -156,7 +182,7 @@ internal static class Program
             Call("Add", ItemKind.Text);
             Control<TextBox>("TitleField").Text = "Домашняя сеть.txt";
             Control<TextBox>("TextField").Text = "Вымышленная заметка\n\nИмя сети: Example Home\nРоутер: demo-router";
-            Await((Task)Call("SaveChanges", new object?[] { null })!);
+            Await((Task)Call("SaveChanges")!);
             Assert(session.Items.Count == 2, "Text file not saved");
             Assert(Control<StackPanel>("LoginFields").Visibility == Visibility.Collapsed, "Login fields visible for text");
             Assert(Control<TextBox>("TextField").VerticalContentAlignment == VerticalAlignment.Top,
@@ -169,7 +195,7 @@ internal static class Program
             Assert((int)child.Header.GetType().GetProperty("Count")!.GetValue(child.Header)! == 1,
                 "Search hid the folder's actual item count");
             Control<TextBox>("Search").Clear();
-            Await((Task)Call("SaveChanges", new object?[] { null })!);
+            Await((Task)Call("SaveChanges")!);
             Capture("text-editor");
             Await((Task)Call("LockVault")!);
             using (var reopened = VaultSession.Open(vaultPath, password))

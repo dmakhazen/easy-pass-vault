@@ -18,17 +18,43 @@ public sealed class AtomicVaultFile(Action<string>? stage = null)
 
     public void Write(string path, byte[] ciphertext, byte[]? expectedHash)
     {
-        if (ciphertext.Length > MaxFileBytes) throw new VaultException("Хранилище превышает ограничение 32 МБ.");
         path = Path.GetFullPath(path);
-        string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        // A cooperating second instance cannot pass the commit check concurrently.
-        string lockPath = path + ".epv-lock";
+        WriteCore(path + ".epv-lock", () => { VerifyUnchanged(path, expectedHash); return path; }, ciphertext,
+            replace: expectedHash is not null);
+    }
+
+    /// <summary>
+    /// Writes a brand-new file and never touches existing ones. <paramref name="resolve"/> runs under
+    /// <paramref name="lockPath"/>, checks preconditions and returns the destination; it runs again just
+    /// before the final move and must return the same destination.
+    /// </summary>
+    public string WriteNew(string lockPath, Func<string> resolve, byte[] ciphertext)
+    {
+        string? destination = null;
+        WriteCore(Path.GetFullPath(lockPath), () =>
+        {
+            string resolved = Path.GetFullPath(resolve());
+            if (destination is not null && !string.Equals(destination, resolved, StringComparison.OrdinalIgnoreCase))
+                throw new VaultException(VaultVersions.NewerVersionExists);
+            if (File.Exists(resolved))
+                throw new VaultException("Файл уже существует. Выберите другое имя; существующее хранилище не перезаписано.");
+            return destination = resolved;
+        }, ciphertext, replace: false);
+        return destination!;
+    }
+
+    private void WriteCore(string lockPath, Func<string> check, byte[] ciphertext, bool replace)
+    {
+        if (ciphertext.Length > MaxFileBytes) throw new VaultException("Хранилище превышает ограничение 32 МБ.");
+        string? temp = null;
         FileStream? gate = null;
         try
         {
+            // A cooperating second instance cannot pass the commit check concurrently.
             gate = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None,
                 1, FileOptions.DeleteOnClose);
-            VerifyCurrent(path, expectedHash);
+            string path = check();
+            temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                        64 * 1024, FileOptions.WriteThrough))
             {
@@ -36,20 +62,20 @@ public sealed class AtomicVaultFile(Action<string>? stage = null)
                 output.Flush(flushToDisk: true);
             }
             stage?.Invoke("after-flush");
-            VerifyCurrent(path, expectedHash);
+            check();
             stage?.Invoke("before-replace");
-            if (expectedHash is null) File.Move(temp, path, overwrite: false);
-            else File.Replace(temp, path, null, ignoreMetadataErrors: false);
+            if (replace) File.Replace(temp, path, null, ignoreMetadataErrors: false);
+            else File.Move(temp, path, overwrite: false);
         }
         finally
         {
             // Only remove the temporary file owned by this operation. Never delete the original.
-            if (File.Exists(temp)) File.Delete(temp);
+            if (temp is not null && File.Exists(temp)) File.Delete(temp);
             gate?.Dispose();
         }
     }
 
-    private static void VerifyCurrent(string path, byte[]? expected)
+    public static void VerifyUnchanged(string path, byte[]? expected)
     {
         if (expected is null)
         {
