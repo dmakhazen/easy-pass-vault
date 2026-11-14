@@ -79,5 +79,38 @@ public static partial class VaultVersions
         return PathFor(DirectoryOf(full), Parse(full).BaseName, 1, date);
     }
 
+    /// <summary>A file of the series as found on disk. Number is 0 for a file outside the numbered series.</summary>
+    public sealed record VersionFile(string Path, int Number, DateTime ModifiedUtc, long Size, bool IsCurrent, bool IsLatest);
+
+    /// <summary>
+    /// The numbered files of the series of <paramref name="vaultPath"/> in its folder, the newest number first.
+    /// The given file is always in the list (marked current), even when it is not numbered. Only the folder
+    /// listing and file sizes and times are read; no file is opened.
+    /// </summary>
+    public static IReadOnlyList<VersionFile> List(string vaultPath)
+    {
+        string current = Path.GetFullPath(vaultPath);
+        string baseName = Parse(current).BaseName;
+        var files = Directory.EnumerateFiles(DirectoryOf(current), "*.kdbx")
+            .Where(file => Path.GetExtension(file).Equals(".kdbx", StringComparison.OrdinalIgnoreCase))
+            .Select(file => (File: Path.GetFullPath(file), Name: Parse(file)))
+            .Where(x => x.Name.Number > 0 && x.Name.BaseName.Equals(baseName, StringComparison.OrdinalIgnoreCase))
+            .Select(x => (x.File, x.Name.Number))
+            .ToList();
+        if (!files.Any(x => x.File.Equals(current, StringComparison.OrdinalIgnoreCase)) && File.Exists(current))
+            files.Add((current, Parse(current).Number));
+        int latest = files.Count == 0 ? 0 : files.Max(x => x.Number);
+        return files
+            .OrderByDescending(x => x.Number).ThenBy(x => x.File, StringComparer.OrdinalIgnoreCase)
+            .Select(x =>
+            {
+                var info = new FileInfo(x.File);
+                bool exists = info.Exists;
+                return new VersionFile(x.File, x.Number, exists ? info.LastWriteTimeUtc : default, exists ? info.Length : 0,
+                    x.File.Equals(current, StringComparison.OrdinalIgnoreCase), x.Number > 0 && x.Number == latest);
+            })
+            .ToList();
+    }
+
     private static string DirectoryOf(string path) => Path.GetDirectoryName(Path.GetFullPath(path))!;
 }

@@ -14,12 +14,16 @@ public sealed class VaultSession : IDisposable
 {
     private const string KindField = "easy-pass-vault:kind";
     private const string SavedAtField = "easy-pass-vault:saved-at";
+    // Entry custom data (hidden in other clients): when each attachment was added, by attachment name.
+    private const string AddedPrefix = "easy-pass-vault:attachment-added:";
     private PwDatabase database;
     private byte[] snapshot;
     private byte[] fingerprint;
     private readonly AtomicVaultFile writer;
     private bool disposed;
     public string FilePath { get; private set; }
+    /// <summary>Size in bytes of the encrypted file as last read or written.</summary>
+    public long FileSize => snapshot.Length;
     public DateTimeOffset? LastSavedAt =>
         DateTimeOffset.TryParseExact(database.CustomData.Get(SavedAtField), "O",
             CultureInfo.InvariantCulture, DateTimeStyles.None, out var savedAt) ? savedAt : null;
@@ -125,7 +129,16 @@ public sealed class VaultSession : IDisposable
             entry.Strings.ReadSafe(KindField) == "text" ? ItemKind.Text : ItemKind.Login,
             entry.Strings.ReadSafe(PwDefs.TitleField), entry.Strings.ReadSafe(PwDefs.UserNameField),
             includePassword ? entry.Strings.ReadSafe(PwDefs.PasswordField) : "",
-            entry.Strings.ReadSafe(PwDefs.UrlField), entry.Strings.ReadSafe(PwDefs.NotesField));
+            entry.Strings.ReadSafe(PwDefs.UrlField), entry.Strings.ReadSafe(PwDefs.NotesField))
+        {
+            // KDBX keeps the time of the last change of every entry; sorting by date uses it as is.
+            Modified = DateTime.SpecifyKind(entry.LastModificationTime, DateTimeKind.Utc),
+            PasswordSet = !includePassword && !entry.Strings.GetSafe(PwDefs.PasswordField).IsEmpty
+,
+            // The bytes stay in KeePassLib's protected binaries; the item only holds references to them.
+            Attachments = VaultAttachments.Sorted(entry.Binaries.Select(pair => new VaultAttachment(pair.Key,
+                new AttachmentContent(pair.Value), ReadAddedTime(entry, pair.Key))))
+        };
 
     public void ExportText(string path)
     {
@@ -137,7 +150,9 @@ public sealed class VaultSession : IDisposable
         var items = database.RootGroup.GetEntries(true).Select(entry =>
         {
             var item = ReadItem(entry, includePassword: true);
-            return new { Folder = folders[item.FolderId], Kind = item.Kind.ToString(), item.Title, item.Login, item.Password, item.Site, item.Text };
+            // Attachments are never exported: only the name and the size of each one.
+            return new { Folder = folders[item.FolderId], Kind = item.Kind.ToString(), item.Title, item.Login, item.Password, item.Site, item.Text,
+                Attachments = item.Attachments.Select(attachment => new { attachment.Name, attachment.Size }).ToArray() };
         });
         var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         try
@@ -207,8 +222,28 @@ public sealed class VaultSession : IDisposable
             entry.Strings.Set(PwDefs.UrlField, new ProtectedString(true, item.Site));
             entry.Strings.Set(PwDefs.NotesField, new ProtectedString(true, item.Text));
             entry.Strings.Set(KindField, new ProtectedString(false, item.Kind == ItemKind.Text ? "text" : "login"));
+            WriteAttachments(entry, item.Attachments);
             entry.Touch(true);
     }
+
+    // Standard KDBX 4 entry binaries: other clients see them as ordinary attachments.
+    private static void WriteAttachments(PwEntry entry, IReadOnlyList<VaultAttachment> attachments)
+    {
+        if (attachments.Select(a => a.Name).Distinct(StringComparer.Ordinal).Count() != attachments.Count ||
+            attachments.Any(a => string.IsNullOrWhiteSpace(a.Name)))
+            throw new VaultException("У вложений одной записи имена должны быть разными и непустыми.");
+        entry.Binaries.Clear();
+        foreach (var attachment in attachments) entry.Binaries.Set(attachment.Name, attachment.Content.Binary);
+        foreach (string key in entry.CustomData.Select(pair => pair.Key).Where(key => key.StartsWith(AddedPrefix, StringComparison.Ordinal)).ToList())
+            entry.CustomData.Remove(key);
+        foreach (var attachment in attachments.Where(a => a.Added is not null))
+            entry.CustomData.Set(AddedPrefix + attachment.Name,
+                attachment.Added!.Value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+    }
+
+    private static DateTime? ReadAddedTime(PwEntry entry, string name) =>
+        DateTime.TryParseExact(entry.CustomData.Get(AddedPrefix + name), "O", CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var added) ? added : null;
 
     public void DeleteItem(string id) => Commit(db =>
     {

@@ -1,92 +1,259 @@
 <Window x:Class="EasyPassVault.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:EasyPassVault.App" Title="easy-pass-vault" Icon="Assets/vault.ico" Width="1180" Height="760" MinWidth="950" MinHeight="640" WindowStartupLocation="CenterScreen" UseLayoutRounding="True" Closing="OnClosing">
  <Window.Resources><local:ItemTitleConverter x:Key="ItemTitleConverter"/></Window.Resources>
+ <Grid x:Name="Root">
  <DockPanel>
-  <Border DockPanel.Dock="Top" Background="White" BorderBrush="#DFE6E2" BorderThickness="0,0,0,1" Padding="18,8">
-   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Image x:Name="BrandIcon" Source="Assets/vault.png" Width="36" Height="36" Stretch="Uniform" AutomationProperties.Name="{DynamicResource Ui.0}"/><TextBlock Text="easy-pass-vault" FontSize="20" FontWeight="SemiBold" Margin="10,0" VerticalAlignment="Center"/></StackPanel>
-    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0" TextBlock.Foreground="#758376">
-     <TextBlock x:Name="VaultName" Text="{DynamicResource Ui.1}" TextTrimming="CharacterEllipsis"/>
-     <TextBlock x:Name="SavedAt" TextWrapping="Wrap" FontSize="12"/>
+  <!-- Header: one 56 px row. Rare actions live in the "⋯" menu. -->
+  <Border x:Name="HeaderBar" DockPanel.Dock="Top" Height="56" Background="White" BorderBrush="#DFE6E2" BorderThickness="0,0,0,1" Padding="16,0">
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Image x:Name="BrandIcon" Source="Assets/vault.png" Width="30" Height="30" Stretch="Uniform" VerticalAlignment="Center"
+           AutomationProperties.Name="{DynamicResource Ui.0}"/>
+    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,6,0">
+     <TextBlock x:Name="VaultName" Text="{DynamicResource Ui.1}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+     <TextBlock x:Name="SaveState" FontSize="12" Margin="0,1,0,0" Foreground="{StaticResource Secondary}"
+                TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"/>
     </StackPanel>
-    <DockPanel Grid.Row="1" Grid.ColumnSpan="3">
-    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+    <StackPanel x:Name="HeaderActions" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+     <Border x:Name="ViewSwitch" Background="#E9EFEA" CornerRadius="8" Padding="3" VerticalAlignment="Center"
+             AutomationProperties.Name="{DynamicResource Ui.106}">
+      <StackPanel Orientation="Horizontal">
+       <Button x:Name="CompactViewButton" Content="{DynamicResource Ui.101}" Style="{StaticResource Segment}" Click="CompactViewClick"/>
+       <Button x:Name="WideViewButton" Content="{DynamicResource Ui.102}" Style="{StaticResource SegmentActive}" Click="WideViewClick"/>
+      </StackPanel>
+     </Border>
+     <Button x:Name="ExpandButton" Style="{StaticResource HeaderIcon}" Margin="0" Click="WideViewClick" Visibility="Collapsed"
+             ToolTip="{DynamicResource Ui.102}" AutomationProperties.Name="{DynamicResource Ui.102}">
+      <Path Width="16" Height="16" StrokeThickness="1.5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+            Data="M9.5,2.5 H13.5 V6.5 M13.5,2.5 L9,7 M6.5,13.5 H2.5 V9.5 M2.5,13.5 L7,9"/>
+     </Button>
+     <Button x:Name="QuickSearchButton" Style="{StaticResource HeaderIcon}" Click="QuickSearchClick" Visibility="Collapsed"
+             ToolTip="{DynamicResource Ui.129}" AutomationProperties.Name="{DynamicResource Ui.129}">
+      <Path Width="16" Height="16" StrokeThickness="1.6" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+            Data="{StaticResource SearchIcon}"/>
+     </Button>
      <StackPanel x:Name="VersionActions" Orientation="Horizontal" Visibility="Collapsed">
-      <Button x:Name="SaveButton" Content="{DynamicResource Ui.25}" Click="SaveClick" Style="{StaticResource Primary}" IsEnabled="False"/>
-      <Button x:Name="SaveVersionButton" Click="SaveVersionClick"/>
-      <Border x:Name="VersionHelp" Background="#E1EADE" CornerRadius="12" Width="24" Height="24"
-              Tag="{DynamicResource Ui.3}"
-              VerticalAlignment="Center" Margin="4,0,8,0" Focusable="True" Cursor="Help"
-              ToolTipService.ShowOnDisabled="True" ToolTipService.InitialShowDelay="150">
-       <Border.ToolTip>
-        <ToolTip>
-         <TextBlock Text="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ToolTip}}"
-                    TextWrapping="Wrap" MaxWidth="320"/>
-        </ToolTip>
-       </Border.ToolTip>
-       <TextBlock Text="?" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-      </Border>
+      <Button x:Name="SaveButton" Click="SaveClick" Style="{StaticResource HeaderPrimary}" IsEnabled="False"
+              ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="{DynamicResource Ui.25}">
+       <StackPanel Orientation="Horizontal">
+        <TextBlock Text="{DynamicResource Ui.98}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+        <Border x:Name="SaveShortcut" Background="#24584A" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center">
+         <TextBlock Text="Ctrl+S" FontSize="11"/>
+        </Border>
+       </StackPanel>
+      </Button>
+      <Button x:Name="SaveVersionButton" Click="SaveVersionClick" Style="{StaticResource Header}" IsEnabled="False"
+              ToolTipService.ShowOnDisabled="True"/>
      </StackPanel>
-     <Button x:Name="ExportButton" Content="{DynamicResource Ui.74}" Click="ExportClick" Visibility="Collapsed"/>
-    </StackPanel>
-    <Border x:Name="SaveStateBadge" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Center"
-            Padding="8,4" CornerRadius="5">
-     <TextBlock x:Name="SaveState" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
-    </Border>
-    </DockPanel>
-    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-     <Button x:Name="LockButton" Content="{DynamicResource Ui.4}" Click="LockClick" IsEnabled="False" Visibility="Collapsed"/>
-     <ComboBox x:Name="LanguagePicker" MinWidth="95" VerticalAlignment="Center" Margin="8,0,0,0"
-               AutomationProperties.Name="{DynamicResource Ui.5}" SelectionChanged="LanguageChanged"/>
+     <Button x:Name="LockButton" Click="LockClick" Style="{StaticResource Header}" IsEnabled="False" Visibility="Collapsed"
+             AutomationProperties.Name="{DynamicResource Ui.4}">
+      <StackPanel Orientation="Horizontal">
+       <Path x:Name="LockIcon" Width="16" Height="16" StrokeThickness="1.5" Visibility="Collapsed"
+             Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+             Data="M4.5,7 H11.5 A1.5,1.5 0 0 1 13,8.5 V12.5 A1.5,1.5 0 0 1 11.5,14 H4.5 A1.5,1.5 0 0 1 3,12.5 V8.5 A1.5,1.5 0 0 1 4.5,7 Z M5,7 V5 A3,3 0 0 1 11,5 V7"/>
+       <TextBlock x:Name="LockLabel" Text="{DynamicResource Ui.4}" VerticalAlignment="Center"/>
+      </StackPanel>
+     </Button>
+     <Button x:Name="MenuButton" Style="{StaticResource HeaderIcon}" Background="White" FontWeight="SemiBold" Content="⋯" Click="MenuClick"
+             ToolTip="{DynamicResource Ui.104}" AutomationProperties.Name="{DynamicResource Ui.104}">
+      <Button.ContextMenu>
+       <ContextMenu x:Name="MainMenu" Placement="Bottom">
+        <MenuItem x:Name="NewFileMenuItem" Click="SaveVersionClick" Visibility="Collapsed"/>
+        <MenuItem x:Name="ExportMenuItem" Click="ExportClick" Visibility="Collapsed"/>
+        <MenuItem x:Name="VersionsMenuItem" Click="VersionsClick" Visibility="Collapsed"/>
+        <Separator x:Name="MenuSeparator" Visibility="Collapsed"/>
+        <MenuItem x:Name="LanguageMenu"/>
+       </ContextMenu>
+      </Button.ContextMenu>
+     </Button>
     </StackPanel>
    </Grid>
   </Border>
-  <Border DockPanel.Dock="Bottom" Background="#F1F4EF" Padding="16,6"><TextBlock x:Name="Status" Text="{DynamicResource Ui.6}" TextWrapping="Wrap" FontSize="12"/></Border>
+  <Border DockPanel.Dock="Bottom" Background="#F1F4EF" BorderBrush="#DFE6E2" BorderThickness="0,1,0,0" Padding="16,5"><TextBlock x:Name="Status" Text="{DynamicResource Ui.6}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Secondary}"/></Border>
   <Grid>
    <Grid x:Name="Welcome">
-    <StackPanel Width="480" VerticalAlignment="Center" HorizontalAlignment="Center">
-     <TextBlock Text="{DynamicResource Ui.7}" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,14"/>
-     <TextBlock Text="{DynamicResource Ui.8}" TextWrapping="Wrap" Foreground="#758376" Margin="0,0,0,24"/>
-     <Button Content="{DynamicResource Ui.9}" Style="{StaticResource Primary}" Click="OpenClick" Padding="16,13"/>
-     <Button Content="{DynamicResource Ui.10}" Click="CreateClick" Padding="16,13"/>
-     <TextBlock Text="{DynamicResource Ui.87}" TextWrapping="Wrap" Margin="3,14,3,0"/>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel MaxWidth="520" Margin="24" VerticalAlignment="Center" HorizontalAlignment="Stretch">
+     <!-- First run: the introduction. With recent files: the last one with its password field, as in IdeaWelcome. -->
+     <StackPanel x:Name="WelcomeIntro">
+      <TextBlock Text="{DynamicResource Ui.7}" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,14" TextWrapping="Wrap"/>
+      <TextBlock Text="{DynamicResource Ui.8}" TextWrapping="Wrap" Foreground="{StaticResource Secondary}" Margin="0,0,0,24"/>
+     </StackPanel>
+     <StackPanel x:Name="WelcomeRecent" Visibility="Collapsed">
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+       <Image Source="Assets/vault.png" Width="32" Height="32" VerticalAlignment="Center"/>
+       <TextBlock Text="{DynamicResource Ui.141}" FontSize="20" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center"/>
+      </StackPanel>
+      <Border x:Name="RecentCard" Background="White" BorderBrush="{StaticResource Green}" BorderThickness="1" CornerRadius="10" Padding="14">
+       <StackPanel>
+        <Grid>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <StackPanel>
+          <TextBlock x:Name="RecentName" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+          <TextBlock x:Name="RecentInfo" FontSize="12" Foreground="{StaticResource Secondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+         </StackPanel>
+         <Border x:Name="RecentLatestBadge" Grid.Column="1" Background="#E4F4EC" CornerRadius="10" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+          <TextBlock Text="{DynamicResource Ui.143}" FontSize="12" FontWeight="SemiBold" Foreground="#1D5944"/>
+         </Border>
+        </Grid>
+        <DockPanel x:Name="RecentPasswordRow" Margin="0,10,0,0">
+         <Button x:Name="RecentOpenButton" DockPanel.Dock="Right" Style="{StaticResource Primary}" Margin="6,0,0,0" Padding="16,8" Click="RecentOpenClick">
+          <StackPanel Orientation="Horizontal">
+           <TextBlock Text="{DynamicResource Ui.108}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+           <Border Background="#24584A" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="Enter" FontSize="11"/>
+           </Border>
+          </StackPanel>
+         </Button>
+         <Grid>
+          <PasswordBox x:Name="RecentPassword" KeyDown="RecentPasswordKeyDown" PasswordChanged="RecentPasswordChanged"
+                       AutomationProperties.Name="{DynamicResource Ui.142}"/>
+          <TextBlock x:Name="RecentPasswordHint" Text="{DynamicResource Ui.142}" Foreground="{StaticResource Secondary}" Margin="11,0"
+                     VerticalAlignment="Center" IsHitTestVisible="False"/>
+         </Grid>
+        </DockPanel>
+        <Button x:Name="RecentRemoveButton" Content="{DynamicResource Ui.147}" HorizontalAlignment="Left" Margin="0,10,0,0" Padding="12,6"
+                Click="RecentRemoveClick" Visibility="Collapsed"/>
+       </StackPanel>
+      </Border>
+      <TextBlock x:Name="OtherRecentTitle" Text="{DynamicResource Ui.144}" FontSize="11" Foreground="{StaticResource Secondary}" Margin="0,16,0,6"/>
+      <ItemsControl x:Name="OtherRecentList">
+       <ItemsControl.ItemTemplate>
+        <DataTemplate>
+         <Button Click="OtherRecentClick" HorizontalContentAlignment="Stretch" Padding="12,9" Margin="0,0,0,6" Background="White"
+                 BorderBrush="#DCE3DC" AutomationProperties.Name="{Binding Name}">
+          <Grid>
+           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{Binding NameBrush}"/>
+            <TextBlock Text="{Binding Info}" FontSize="12" Foreground="{StaticResource Secondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+           </StackPanel>
+           <TextBlock Grid.Column="1" Text="{Binding Warning}" FontSize="12" Foreground="{Binding WarningBrush}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+          </Grid>
+         </Button>
+        </DataTemplate>
+       </ItemsControl.ItemTemplate>
+      </ItemsControl>
+     </StackPanel>
+     <UniformGrid x:Name="WelcomeButtons" Columns="1" Margin="0,8,0,0">
+      <Button x:Name="WelcomeOpenButton" Content="{DynamicResource Ui.9}" Style="{StaticResource Primary}" Click="OpenClick" Padding="16,13"/>
+      <Button x:Name="WelcomeCreateButton" Content="{DynamicResource Ui.10}" Click="CreateClick" Padding="16,13"/>
+     </UniformGrid>
+     <TextBlock x:Name="WelcomeSaveHelp" Text="{DynamicResource Ui.87}" TextWrapping="Wrap" Margin="3,14,3,0"/>
      <TextBlock Text="{DynamicResource Ui.11}" TextWrapping="Wrap" FontSize="12" Foreground="#887548" Margin="0,22,0,0"/>
     </StackPanel>
+    </ScrollViewer>
    </Grid>
-   <Grid x:Name="Workspace" Visibility="Collapsed">
-    <Grid.ColumnDefinitions><ColumnDefinition Width="225"/><ColumnDefinition Width="285"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-    <Border Background="#F4F6F1" BorderBrush="#DCE3DC" BorderThickness="0,0,1,0" Padding="10,22">
-     <DockPanel><TextBlock DockPanel.Dock="Top" Text="{DynamicResource Ui.12}" Margin="12,0,0,15" FontSize="11" Foreground="#758376"/>
-      <StackPanel DockPanel.Dock="Bottom">
-       <Button Content="{DynamicResource Ui.13}" Click="AddFolderClick"/>
-       <Button Content="{DynamicResource Ui.14}" Click="RenameFolderClick"/>
-       <Button x:Name="DeleteFolderButton" Content="{DynamicResource Ui.15}" Click="DeleteFolderClick"
-               IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
-      </StackPanel>
-      <Button x:Name="AllFoldersButton" DockPanel.Dock="Top" Content="{DynamicResource Ui.16}"
-              Click="AllFoldersClick" Margin="0,0,0,10" HorizontalContentAlignment="Left"/>
+   <!-- Three areas with draggable borders. In the compact view only the list or the editor is shown. -->
+   <Grid x:Name="Workspace" Visibility="Collapsed" SizeChanged="WorkspaceSizeChanged">
+    <Grid.ColumnDefinitions>
+     <ColumnDefinition x:Name="FoldersColumn" Width="220" MinWidth="160"/>
+     <ColumnDefinition Width="Auto"/>
+     <ColumnDefinition x:Name="RestColumn" Width="*" MinWidth="690"/>
+    </Grid.ColumnDefinitions>
+    <Border x:Name="FoldersPane" Background="#F4F6F1" BorderBrush="#DCE3DC" BorderThickness="0,0,1,0" Padding="10,16,10,10">
+     <DockPanel>
+      <Grid DockPanel.Dock="Top" Margin="8,-3,0,5">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <TextBlock Text="{DynamicResource Ui.12}" FontSize="11" Foreground="{StaticResource Secondary}" VerticalAlignment="Center"/>
+       <Button x:Name="FolderSortButton" Grid.Column="1" Style="{StaticResource Mini}" Foreground="#43564D" Click="FolderSortClick"
+               ToolTip="{DynamicResource Ui.126}" AutomationProperties.Name="{DynamicResource Ui.126}"/>
+      </Grid>
+      <!-- Rename and delete live in the folder menu: right click, the "⋯" of the selected row, F2 and Delete. -->
+      <Button x:Name="AddFolderButton" DockPanel.Dock="Bottom" Content="{DynamicResource Ui.13}" Style="{StaticResource Dashed}"
+              Click="AddFolderClick" Margin="0,8,0,0"/>
+      <Button x:Name="AllFoldersButton" DockPanel.Dock="Top" Style="{StaticResource FolderRow}" Click="AllFoldersClick" Margin="0,0,0,2">
+       <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="12"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <Path Grid.Column="1" Fill="#56836E" Width="16" Height="13" Stretch="Uniform" Margin="0,0,8,0"
+              VerticalAlignment="Center" Data="M 0,1 L 6,1 L 8,3 L 16,3 L 16,13 L 0,13 Z"/>
+        <TextBlock x:Name="AllFoldersName" Grid.Column="2" Text="{DynamicResource Ui.16}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+        <TextBlock x:Name="AllFoldersCount" Grid.Column="3" FontSize="12" Foreground="#43564D" Margin="8,0,0,0" VerticalAlignment="Center"/>
+       </Grid>
+      </Button>
       <TreeView x:Name="FolderList" SelectedItemChanged="FolderChanged" PreviewMouseMove="DragSourceMouseMove"
-                PreviewMouseLeftButtonUp="DragSourceMouseUp"
-                Background="Transparent" BorderThickness="0">
+                PreviewMouseLeftButtonUp="DragSourceMouseUp" Padding="0" KeyDown="FolderTreeKeyDown"
+                ContextMenuOpening="FolderMenuOpening"
+                Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+       <!-- Opened from code only (FolderMenuOpening, FolderMoreClick), so it always belongs to the selected folder. -->
+       <TreeView.ContextMenu>
+        <ContextMenu x:Name="FolderMenu">
+         <MenuItem x:Name="FolderMenuAdd" Click="AddFolderClick"/>
+         <MenuItem x:Name="FolderMenuRename" Click="RenameFolderClick" InputGestureText="F2" ToolTipService.ShowOnDisabled="True"/>
+         <Separator/>
+         <MenuItem x:Name="FolderMenuDelete" Click="DeleteFolderClick" InputGestureText="Del" Foreground="#96483D"
+                   IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
+        </ContextMenu>
+       </TreeView.ContextMenu>
        <TreeView.Resources>
+        <Style x:Key="FolderToggle" TargetType="ToggleButton">
+         <Setter Property="Focusable" Value="False"/>
+         <Setter Property="Width" Value="12"/>
+         <Setter Property="Cursor" Value="Hand"/>
+         <Setter Property="Template">
+          <Setter.Value>
+           <ControlTemplate TargetType="ToggleButton">
+            <Border Background="Transparent">
+             <Path x:Name="Arrow" Stroke="#56665B" StrokeThickness="1.5" Data="M 0,0 L 4,4 L 0,8" Width="6" Height="10"
+                   Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Center" RenderTransformOrigin="0.33,0.4"/>
+            </Border>
+            <ControlTemplate.Triggers>
+             <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Arrow" Property="RenderTransform"><Setter.Value><RotateTransform Angle="90"/></Setter.Value></Setter>
+             </Trigger>
+            </ControlTemplate.Triggers>
+           </ControlTemplate>
+          </Setter.Value>
+         </Setter>
+        </Style>
         <Style TargetType="TreeViewItem">
+         <Setter Property="Template">
+          <Setter.Value>
+           <ControlTemplate TargetType="TreeViewItem">
+            <StackPanel>
+             <Border x:Name="Row" CornerRadius="6" Background="Transparent" Margin="0,1">
+              <ContentPresenter ContentSource="Header"/>
+             </Border>
+             <ItemsPresenter x:Name="ItemsHost"/>
+            </StackPanel>
+            <ControlTemplate.Triggers>
+             <Trigger Property="IsExpanded" Value="False"><Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed"/></Trigger>
+             <Trigger SourceName="Row" Property="IsMouseOver" Value="True"><Setter TargetName="Row" Property="Background" Value="#E9EFEA"/></Trigger>
+             <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="{StaticResource FolderSelectedBrush}"/></Trigger>
+            </ControlTemplate.Triggers>
+           </ControlTemplate>
+          </Setter.Value>
+         </Setter>
          <Setter Property="HeaderTemplate">
           <Setter.Value>
            <DataTemplate>
-            <Border Background="Transparent" CornerRadius="4" Padding="4,5" AllowDrop="True"
+            <Border Background="Transparent" CornerRadius="6" Padding="8,7" AllowDrop="True"
                     Tag="{Binding Tag, RelativeSource={RelativeSource AncestorType=TreeViewItem}}"
                     PreviewMouseLeftButtonDown="FolderHeaderPressed" DragOver="FolderHeaderDragOver"
                     DragLeave="FolderHeaderDragLeave" Drop="FolderHeaderDrop">
-             <StackPanel Orientation="Horizontal">
-              <Path Fill="#56836E" Width="16" Height="13" Stretch="Uniform" Margin="0,0,6,0"
-                    VerticalAlignment="Center" Data="M 0,2 L 6,2 L 8,4 L 16,4 L 16,13 L 0,13 Z"/>
-              <Border Background="#E3E8E5" CornerRadius="10" MinWidth="20" Padding="5,1"
-                      Margin="0,0,6,0" VerticalAlignment="Center">
-               <TextBlock Text="{Binding Count}" Foreground="#43564D" FontSize="11" TextAlignment="Center"/>
-              </Border>
-              <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-             </StackPanel>
+             <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border Width="{Binding Indent}"/>
+              <ToggleButton x:Name="Toggle" Grid.Column="1" Style="{DynamicResource FolderToggle}"
+                            IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=TreeViewItem}}"/>
+              <Path Grid.Column="2" Fill="#56836E" Width="16" Height="13" Stretch="Uniform" Margin="0,0,8,0"
+                    VerticalAlignment="Center" Data="M 0,1 L 6,1 L 8,3 L 16,3 L 16,13 L 0,13 Z"/>
+              <TextBlock x:Name="FolderName" Grid.Column="3" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              <TextBlock Grid.Column="4" Text="{Binding Count}" Foreground="#43564D" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
+              <Button x:Name="FolderMore" Grid.Column="5" Content="⋯" Style="{StaticResource Mini}" Width="24" Height="22" Padding="0"
+                      Margin="6,-2,0,-2" FontSize="14" FontWeight="SemiBold" BorderBrush="{StaticResource Green}" Focusable="False"
+                      Visibility="Collapsed" Click="FolderMoreClick"
+                      ToolTip="{DynamicResource Ui.118}" AutomationProperties.Name="{DynamicResource Ui.118}"/>
+             </Grid>
             </Border>
+            <DataTemplate.Triggers>
+             <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="True">
+              <Setter TargetName="FolderName" Property="FontWeight" Value="SemiBold"/>
+              <Setter TargetName="FolderMore" Property="Visibility" Value="Visible"/>
+             </DataTrigger>
+             <DataTrigger Binding="{Binding HasItems, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="False">
+              <Setter TargetName="Toggle" Property="Visibility" Value="Hidden"/>
+             </DataTrigger>
+            </DataTemplate.Triggers>
            </DataTemplate>
           </Setter.Value>
          </Setter>
@@ -95,19 +262,22 @@
       </TreeView>
      </DockPanel>
     </Border>
-    <Border Grid.Column="1" Background="#FBFCFA" BorderBrush="#DCE3DC" BorderThickness="0,0,1,0">
+    <GridSplitter x:Name="FoldersSplitter" Grid.Column="1" Width="5" Margin="-5,0,0,0" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                  ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Background="Transparent" DragCompleted="SplitterDragCompleted"/>
+    <!-- The list and the editor share the rest: dragging the folder border resizes the editor, not the list. -->
+    <Grid Grid.Column="2">
+    <Grid.ColumnDefinitions>
+     <ColumnDefinition x:Name="ListColumn" Width="310" MinWidth="240"/>
+     <ColumnDefinition Width="Auto"/>
+     <ColumnDefinition x:Name="EditorColumn" Width="*" MinWidth="380"/>
+    </Grid.ColumnDefinitions>
+    <Border x:Name="ListPane" Background="#FBFCFA" BorderBrush="#DCE3DC" BorderThickness="0,0,1,0">
      <DockPanel>
-      <StackPanel DockPanel.Dock="Top" Margin="16,20,16,12">
-       <TextBlock x:Name="FolderTitle" Text="{DynamicResource Ui.16}" FontSize="21" Margin="0,0,0,14"/>
-       <UniformGrid Columns="3">
-        <Button x:Name="AllCategory" Click="AllCategoryClick" Padding="5,8"/>
-        <Button x:Name="LoginCategory" Content="{DynamicResource Ui.17}" Click="LoginCategoryClick" Padding="5,8"/>
-        <Button x:Name="TextCategory" Content="{DynamicResource Ui.18}" Click="TextCategoryClick" Padding="5,8"/>
-       </UniformGrid>
-       <Grid Margin="0,14,0,8">
+      <StackPanel DockPanel.Dock="Top" Margin="14,14,14,6">
+       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <TextBox x:Name="Search" TextChanged="SearchChanged" ToolTip="{DynamicResource Ui.19}" AutomationProperties.Name="{DynamicResource Ui.20}"/>
-        <TextBlock x:Name="SearchHint" Text="{DynamicResource Ui.20}" Foreground="#667466" Margin="11,0"
+        <TextBox x:Name="Search" TextChanged="SearchChanged" Background="White" ToolTip="{DynamicResource Ui.19}" AutomationProperties.Name="{DynamicResource Ui.20}"/>
+        <TextBlock x:Name="SearchHint" Text="{DynamicResource Ui.20}" Foreground="{StaticResource Secondary}" Margin="11,0"
                    VerticalAlignment="Center" IsHitTestVisible="False">
          <TextBlock.Style>
           <Style TargetType="TextBlock">
@@ -125,63 +295,360 @@
                 Padding="8,4" Margin="4,0,0,0" Visibility="Collapsed"/>
        </Grid>
        <TextBlock x:Name="SearchNoResults" Text="{DynamicResource Ui.94}" Visibility="Collapsed"
-                  Foreground="#436657" TextWrapping="Wrap" Margin="4,0,4,8"/>
-       <UniformGrid Columns="2"><Button Content="{DynamicResource Ui.21}" Click="AddLoginClick"/><Button Content="{DynamicResource Ui.22}" Click="AddTextClick"/></UniformGrid>
+                  Foreground="#436657" TextWrapping="Wrap" Margin="4,8,4,0"/>
+       <ComboBox x:Name="CompactFolderPicker" DisplayMemberPath="Name" Padding="8,6" Margin="0,10,0,0" Visibility="Collapsed"
+                 SelectionChanged="CompactFolderChanged" AutomationProperties.Name="{DynamicResource Ui.27}"/>
+       <Border Background="#E9EFEA" CornerRadius="8" Padding="3" Margin="0,10,0,0">
+        <UniformGrid Columns="3">
+         <Button x:Name="AllCategory" Click="AllCategoryClick" Style="{StaticResource SegmentActive}" Padding="4,5"/>
+         <Button x:Name="LoginCategory" Content="{DynamicResource Ui.17}" Click="LoginCategoryClick" Style="{StaticResource Segment}" Padding="4,5"/>
+         <Button x:Name="TextCategory" Content="{DynamicResource Ui.18}" Click="TextCategoryClick" Style="{StaticResource Segment}" Padding="4,5"/>
+        </UniformGrid>
+       </Border>
+       <TextBlock x:Name="FolderTitle" Text="{DynamicResource Ui.16}" FontSize="12" Foreground="{StaticResource Secondary}"
+                  TextTrimming="CharacterEllipsis" Margin="2,10,2,0"/>
+       <Grid Margin="2,8,0,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="{DynamicResource Ui.119}" FontSize="12" Foreground="{StaticResource Secondary}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"/>
+        <Button x:Name="ItemSortButton" Grid.Column="1" Style="{StaticResource Mini}" Padding="8,3" Click="ItemSortClick"
+                AutomationProperties.Name="{DynamicResource Ui.119}">
+         <Button.ContextMenu><ContextMenu x:Name="ItemSortMenu" Placement="Bottom"/></Button.ContextMenu>
+        </Button>
+       </Grid>
       </StackPanel>
+      <Border DockPanel.Dock="Bottom" BorderBrush="#DCE3DC" BorderThickness="0,1,0,0" Padding="14,10">
+       <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <Button Content="{DynamicResource Ui.21}" Click="AddLoginClick" Margin="0" Padding="8,7"/>
+        <Button Grid.Column="2" Content="{DynamicResource Ui.22}" Click="AddTextClick" Margin="0" Padding="8,7"/>
+       </Grid>
+      </Border>
       <ListBox x:Name="ItemList" SelectionChanged="ItemChanged" PreviewMouseLeftButtonDown="ItemListPressed"
-               PreviewMouseMove="DragSourceMouseMove" PreviewMouseLeftButtonUp="DragSourceMouseUp">
+               PreviewMouseMove="DragSourceMouseMove" PreviewMouseLeftButtonUp="DragSourceMouseUp" AlternationCount="3">
        <ListBox.ItemTemplate>
         <DataTemplate>
-         <StackPanel>
-          <TextBlock Text="{Binding Converter={StaticResource ItemTitleConverter}}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-          <TextBlock Text="{Binding Login}" FontSize="12" Foreground="#758376" TextTrimming="CharacterEllipsis" Margin="0,5,0,0"/>
-         </StackPanel>
+         <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <Border x:Name="Badge" Width="32" Height="32" CornerRadius="8" Background="#CFE3D6" Margin="0,0,10,0" VerticalAlignment="Center">
+           <TextBlock Text="{Binding Converter={StaticResource ItemTitleConverter}, ConverterParameter=letter}" Foreground="#24493B"
+                      FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+           <TextBlock Text="{Binding Converter={StaticResource ItemTitleConverter}}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+           <TextBlock Text="{Binding Converter={StaticResource ItemTitleConverter}, ConverterParameter=sub}" FontSize="12"
+                      Foreground="{StaticResource Secondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+          </StackPanel>
+          <!-- Attachments: a paper clip with their number (Attachments.dc.html). -->
+          <StackPanel x:Name="ClipBadge" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
+                      ToolTip="{DynamicResource Ui.214}">
+           <Path Data="{StaticResource ClipIcon}" Width="14" Height="14" Stretch="Uniform" StrokeThickness="1.4" Stroke="#43564D" VerticalAlignment="Center"/>
+           <TextBlock Text="{Binding AttachmentCount}" FontSize="12" Foreground="#43564D" Margin="3,0,0,0" VerticalAlignment="Center"/>
+          </StackPanel>
+          <!-- Entries only, on the selected row and under the mouse. A click copies and does not select the row. -->
+          <Button x:Name="RowCopyLogin" Grid.Column="3" Style="{StaticResource RowIcon}" Visibility="Collapsed" Click="RowCopyLoginClick"
+                  ToolTip="{DynamicResource Ui.109}" AutomationProperties.Name="{DynamicResource Ui.109}">
+           <Path Data="{StaticResource UserIcon}" Width="16" Height="16" StrokeThickness="1.5"
+                 Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+          </Button>
+          <Button x:Name="RowCopyPassword" Grid.Column="4" Style="{StaticResource RowIconPrimary}" Visibility="Collapsed" Click="RowCopyPasswordClick"
+                  ToolTip="{DynamicResource Ui.110}" AutomationProperties.Name="{DynamicResource Ui.110}">
+           <Path Data="{StaticResource KeyIcon}" Width="16" Height="16" StrokeThickness="1.5"
+                 Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+          </Button>
+         </Grid>
+         <DataTemplate.Triggers>
+          <MultiDataTrigger>
+           <MultiDataTrigger.Conditions>
+            <Condition Binding="{Binding Kind}" Value="Login"/>
+            <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True"/>
+           </MultiDataTrigger.Conditions>
+           <Setter TargetName="RowCopyLogin" Property="Visibility" Value="Visible"/>
+           <Setter TargetName="RowCopyPassword" Property="Visibility" Value="Visible"/>
+          </MultiDataTrigger>
+          <MultiDataTrigger>
+           <MultiDataTrigger.Conditions>
+            <Condition Binding="{Binding Kind}" Value="Login"/>
+            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True"/>
+           </MultiDataTrigger.Conditions>
+           <Setter TargetName="RowCopyLogin" Property="Visibility" Value="Visible"/>
+           <Setter TargetName="RowCopyPassword" Property="Visibility" Value="Visible"/>
+          </MultiDataTrigger>
+          <DataTrigger Binding="{Binding AttachmentCount}" Value="0"><Setter TargetName="ClipBadge" Property="Visibility" Value="Collapsed"/></DataTrigger>
+          <DataTrigger Binding="{Binding Login}" Value=""><Setter TargetName="RowCopyLogin" Property="IsEnabled" Value="False"/></DataTrigger>
+          <DataTrigger Binding="{Binding HasPassword}" Value="False"><Setter TargetName="RowCopyPassword" Property="IsEnabled" Value="False"/></DataTrigger>
+          <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="1">
+           <Setter TargetName="Badge" Property="Background" Value="#E8DDBD"/>
+          </DataTrigger>
+          <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="2">
+           <Setter TargetName="Badge" Property="Background" Value="#D5DEE8"/>
+          </DataTrigger>
+         </DataTemplate.Triggers>
         </DataTemplate>
        </ListBox.ItemTemplate>
       </ListBox>
      </DockPanel>
     </Border>
-    <Grid Grid.Column="2" Background="White">
-     <TextBlock x:Name="EmptyEditor" Text="{DynamicResource Ui.23}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#758376" TextAlignment="Center"/>
-     <DockPanel x:Name="Editor" Visibility="Collapsed">
-      <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto"><StackPanel Margin="22,14">
-       <Button x:Name="RevertButton" Click="RevertClick" HorizontalAlignment="Right" Visibility="Collapsed"/>
-       <TextBlock x:Name="KindCaption" Foreground="#758376" FontSize="12"/>
-       <TextBlock x:Name="EditorTitle" FontSize="24" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,4,0,12"/>
-       <UniformGrid Columns="2">
-        <StackPanel Margin="0,0,6,0">
-         <TextBlock Text="{DynamicResource Ui.26}" Foreground="#54655C" FontSize="11" Margin="0,0,0,4"/>
+    <GridSplitter x:Name="ListSplitter" Grid.Column="1" Width="5" Margin="-5,0,0,0" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                  ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Background="Transparent" DragCompleted="SplitterDragCompleted"/>
+    <Grid x:Name="EditorPane" Grid.Column="2" Background="White">
+     <TextBlock x:Name="EmptyEditor" Text="{DynamicResource Ui.23}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource Secondary}" TextAlignment="Center"/>
+     <DockPanel x:Name="Editor" Visibility="Collapsed" AllowDrop="True" PreviewDragOver="AttachmentDragOver" PreviewDragEnter="AttachmentDragOver"
+                DragLeave="AttachmentDragLeave" PreviewDrop="AttachmentDrop">
+      <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="EditorFields" Margin="28,22">
+       <Button x:Name="BackButton" Click="BackToListClick" HorizontalAlignment="Left" Margin="0,0,0,14" Visibility="Collapsed">
+        <TextBlock><Run Text="←"/><Run Text=" "/><Run Text="{DynamicResource Ui.103}"/></TextBlock>
+       </Button>
+       <TextBlock x:Name="KindCaption" Foreground="{StaticResource Secondary}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+       <TextBlock x:Name="EditorTitle" FontSize="24" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,4,0,16"/>
+       <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <StackPanel>
+         <TextBlock Text="{DynamicResource Ui.26}" Style="{StaticResource FieldLabel}"/>
          <TextBox x:Name="TitleField" TextChanged="FieldChanged"/>
         </StackPanel>
-        <StackPanel Margin="6,0,0,0">
-         <TextBlock Text="{DynamicResource Ui.27}" Foreground="#54655C" FontSize="11" Margin="0,0,0,4"/>
+        <StackPanel Grid.Column="2">
+         <TextBlock Text="{DynamicResource Ui.27}" Style="{StaticResource FieldLabel}"/>
          <ComboBox x:Name="ItemFolder" DisplayMemberPath="Name" Padding="8" SelectionChanged="ItemFolderChanged"/>
         </StackPanel>
-       </UniformGrid>
+       </Grid>
        <StackPanel x:Name="LoginFields">
-        <UniformGrid Columns="2" Margin="0,10,0,0">
-         <StackPanel Margin="0,0,6,0">
-          <TextBlock Text="{DynamicResource Ui.28}" Foreground="#54655C" FontSize="11" Margin="0,0,0,4"/>
-          <TextBox x:Name="LoginField" TextChanged="FieldChanged"/>
-         </StackPanel>
-         <StackPanel Margin="6,0,0,0">
-          <TextBlock Text="{DynamicResource Ui.29}" Foreground="#54655C" FontSize="11" Margin="0,0,0,4"/>
-          <DockPanel>
-           <Button DockPanel.Dock="Right" x:Name="ShowPassword" Content="{DynamicResource Ui.30}" Click="ShowPasswordClick" Margin="6,0,0,0"/>
-           <Grid><PasswordBox x:Name="PasswordField" PasswordChanged="PasswordChanged"/><TextBox x:Name="VisiblePassword" Visibility="Collapsed" TextChanged="VisiblePasswordChanged"/></Grid>
-          </DockPanel>
-         </StackPanel>
-        </UniformGrid>
-        <TextBlock Text="{DynamicResource Ui.32}" Foreground="#54655C" FontSize="11" Margin="0,10,0,4"/><TextBox x:Name="SiteField" TextChanged="FieldChanged"/>
+        <TextBlock Text="{DynamicResource Ui.28}" Style="{StaticResource FieldLabel}" Margin="0,14,0,4"/>
+        <DockPanel>
+         <Button x:Name="CopyLoginButton" DockPanel.Dock="Right" Style="{StaticResource FieldAction}" Click="CopyLoginClick" IsEnabled="False"
+                 AutomationProperties.Name="{DynamicResource Ui.109}">
+          <StackPanel Orientation="Horizontal">
+           <Path Data="{StaticResource CopyIcon}" Width="16" Height="16" StrokeThickness="1.5" VerticalAlignment="Center"
+                 Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+           <TextBlock Text="{DynamicResource Ui.107}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+          </StackPanel>
+         </Button>
+         <TextBox x:Name="LoginField" TextChanged="FieldChanged"/>
+        </DockPanel>
+        <TextBlock Text="{DynamicResource Ui.29}" Style="{StaticResource FieldLabel}" Margin="0,14,0,4"/>
+        <DockPanel>
+         <Button x:Name="CopyPasswordButton" DockPanel.Dock="Right" Style="{StaticResource FieldActionPrimary}" Click="CopyPasswordClick" IsEnabled="False"
+                 AutomationProperties.Name="{DynamicResource Ui.110}">
+          <StackPanel Orientation="Horizontal">
+           <Path Data="{StaticResource CopyIcon}" Width="16" Height="16" StrokeThickness="1.5" VerticalAlignment="Center"
+                 Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+           <TextBlock Text="{DynamicResource Ui.107}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+          </StackPanel>
+         </Button>
+         <Button x:Name="GeneratePasswordButton" DockPanel.Dock="Right" Style="{StaticResource FieldAction}" Padding="9,7" Click="GeneratePasswordClick"
+                 ToolTip="{DynamicResource Ui.162}" AutomationProperties.Name="{DynamicResource Ui.162}">
+          <Path Data="{StaticResource DiceIcon}" Width="16" Height="16" StrokeThickness="1.5" VerticalAlignment="Center"
+                Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+         </Button>
+         <Button DockPanel.Dock="Right" x:Name="ShowPassword" Content="{DynamicResource Ui.30}" Click="ShowPasswordClick" Style="{StaticResource FieldAction}"/>
+         <Grid><PasswordBox x:Name="PasswordField" PasswordChanged="PasswordChanged"/><TextBox x:Name="VisiblePassword" Visibility="Collapsed" TextChanged="VisiblePasswordChanged"/></Grid>
+        </DockPanel>
+        <TextBlock Text="{DynamicResource Ui.32}" Style="{StaticResource FieldLabel}" Margin="0,14,0,4"/>
+        <DockPanel>
+         <Button x:Name="CopySiteButton" DockPanel.Dock="Right" Style="{StaticResource FieldAction}" Click="CopySiteClick" IsEnabled="False"
+                 AutomationProperties.Name="{DynamicResource Ui.128}">
+          <StackPanel Orientation="Horizontal">
+           <Path Data="{StaticResource CopyIcon}" Width="16" Height="16" StrokeThickness="1.5" VerticalAlignment="Center"
+                 Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+           <TextBlock Text="{DynamicResource Ui.107}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+          </StackPanel>
+         </Button>
+         <!-- Enabled only for a well-formed http(s) address: nothing else is ever handed to the shell. -->
+         <Button x:Name="OpenSiteButton" DockPanel.Dock="Right" Content="{DynamicResource Ui.108}" Style="{StaticResource FieldAction}"
+                 Click="OpenSiteClick" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
+         <TextBox x:Name="SiteField" TextChanged="FieldChanged"/>
+        </DockPanel>
        </StackPanel>
-       <TextBlock x:Name="TextCaption" Text="{DynamicResource Ui.33}" Foreground="#54655C" FontSize="11" Margin="0,10,0,4"/>
-       <TextBox x:Name="TextField" AcceptsReturn="True" AcceptsTab="True" MinHeight="92" TextWrapping="Wrap"
-                TextAlignment="Left" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" TextChanged="FieldChanged"/>
-       <Button Content="{DynamicResource Ui.34}" Click="DeleteItemClick" Foreground="#A35C52" HorizontalAlignment="Right" Margin="0,10,0,0"/>
+       <!-- Caption and the two text helpers: heading and separator lines (MdBand.dc.html). No other markup. -->
+       <DockPanel Margin="0,14,0,4">
+        <StackPanel x:Name="TextTools" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
+         <Button x:Name="HeadingButton" Style="{StaticResource Mini}" Margin="6,0,0,0" Click="HeadingClick"
+                 ToolTip="{DynamicResource Ui.178}" AutomationProperties.Name="{DynamicResource Ui.178}">
+          <TextBlock><Run Text="#" FontWeight="Bold" Foreground="{StaticResource Green}"/><Run Text=" "/><Run Text="{DynamicResource Ui.178}"/></TextBlock>
+         </Button>
+         <Button x:Name="DividerButton" Style="{StaticResource Mini}" Margin="6,0,0,0" Click="DividerClick"
+                 ToolTip="{DynamicResource Ui.179}" AutomationProperties.Name="{DynamicResource Ui.179}">
+          <TextBlock><Run Text="—" FontWeight="Bold" Foreground="{StaticResource Green}"/><Run Text=" "/><Run Text="{DynamicResource Ui.179}"/></TextBlock>
+         </Button>
+         <Button x:Name="MarkupHelpButton" Style="{StaticResource Mini}" Margin="6,0,0,0" Width="26" Padding="0,2" Content="?" FontWeight="SemiBold"
+                 Click="MarkupHelpClick" ToolTip="{DynamicResource Ui.180}" AutomationProperties.Name="{DynamicResource Ui.180}"
+                 AutomationProperties.HelpText="{DynamicResource Ui.181}"/>
+         <Popup x:Name="MarkupHelp" PlacementTarget="{Binding ElementName=MarkupHelpButton}" Placement="Left" VerticalOffset="28"
+                StaysOpen="False" AllowsTransparency="True">
+          <Border Background="White" BorderBrush="#C9D6CD" BorderThickness="1" CornerRadius="8" Padding="12,10" MaxWidth="320" Margin="0,0,0,8">
+           <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Direction="270" Opacity="0.18" Color="#102019"/></Border.Effect>
+           <TextBlock x:Name="MarkupHelpText" Text="{DynamicResource Ui.181}" TextWrapping="Wrap" FontSize="13" Foreground="#263832"/>
+          </Border>
+         </Popup>
+        </StackPanel>
+        <!-- ".json" text files only: a read-only formatted view. It never edits the text. -->
+        <Border x:Name="TextViewSwitch" DockPanel.Dock="Right" Background="#E9EFEA" CornerRadius="7" Padding="2" Margin="6,0,0,0"
+                VerticalAlignment="Bottom" Visibility="Collapsed">
+         <StackPanel Orientation="Horizontal">
+          <Button x:Name="PlainViewButton" Content="{DynamicResource Ui.33}" Style="{StaticResource SegmentActive}" FontSize="12" Padding="9,2" Click="PlainViewClick"/>
+          <Button x:Name="JsonViewButton" Content="JSON" Style="{StaticResource Segment}" FontSize="12" Padding="9,2" Click="JsonViewClick"/>
+         </StackPanel>
+        </Border>
+        <TextBlock x:Name="TextCaption" Text="{DynamicResource Ui.33}" Style="{StaticResource FieldLabel}" Margin="0,0,0,2"
+                   VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis"/>
+       </DockPanel>
+       <Grid x:Name="TextHost">
+        <local:MarkupLayer x:Name="TextUnder"/>
+        <TextBox x:Name="TextField" AcceptsReturn="True" AcceptsTab="True" MinHeight="92" TextWrapping="Wrap" Background="Transparent"
+                 TextAlignment="Left" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" TextChanged="FieldChanged"/>
+        <local:MarkupLayer x:Name="TextOver"/>
+       </Grid>
+       <local:TextPreviewView x:Name="JsonView" Height="380" Visibility="Collapsed"/>
+       <!-- Attachments (Attachments.dc.html): standard KDBX entry binaries inside the encrypted file. -->
+       <StackPanel x:Name="AttachmentsSection" Margin="0,22,0,0">
+        <DockPanel>
+         <TextBlock x:Name="AttachmentsTotal" DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Secondary}"
+                    VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis" Margin="10,0,0,2"/>
+         <TextBlock x:Name="AttachmentsTitle" FontSize="16" FontWeight="SemiBold"/>
+        </DockPanel>
+        <Border x:Name="AttachmentListBorder" BorderBrush="#DCE3DC" BorderThickness="1" CornerRadius="10" Margin="0,10,0,0" Visibility="Collapsed">
+         <ItemsControl x:Name="AttachmentList">
+          <ItemsControl.ItemTemplate>
+           <DataTemplate>
+            <Border BorderBrush="#EEF2EE" BorderThickness="{Binding Separator}" Padding="12,10">
+             <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border Width="40" Height="40" CornerRadius="8" Background="{Binding Tint}" VerticalAlignment="Center">
+               <TextBlock Text="{Binding Badge}" FontSize="11" FontWeight="SemiBold" Foreground="#24493B" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+              <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+               <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
+               <TextBlock Text="{Binding Info}" FontSize="12" Foreground="{StaticResource Secondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+              </StackPanel>
+              <Button Grid.Column="2" Content="{DynamicResource Ui.187}" Style="{StaticResource Mini}" FontSize="13" Padding="10,5" Margin="0,0,6,0"
+                      Visibility="{Binding PreviewVisibility}" Click="PreviewAttachmentClick"/>
+              <Button Grid.Column="3" Content="{DynamicResource Ui.188}" Style="{StaticResource Mini}" FontSize="13" Padding="10,5" Margin="0,0,6,0"
+                      Background="#F1F5F2" Click="SaveAttachmentClick"/>
+              <Button Grid.Column="4" Content="×" Style="{StaticResource Mini}" Width="30" Height="30" Padding="0" FontSize="15"
+                      Foreground="#96483D" BorderBrush="#E3C9C4" Click="RemoveAttachmentClick"
+                      ToolTip="{DynamicResource Ui.189}" AutomationProperties.Name="{DynamicResource Ui.189}"/>
+             </Grid>
+            </Border>
+           </DataTemplate>
+          </ItemsControl.ItemTemplate>
+         </ItemsControl>
+        </Border>
+        <!-- Files dropped anywhere on the editor land here; the dashed zone is the visible target. -->
+        <Grid x:Name="AttachmentDropZone" MinHeight="110" Margin="0,12,0,0">
+         <Rectangle x:Name="DropOutline" Fill="#F1F7F3" Stroke="#7FA895" StrokeThickness="2" StrokeDashArray="3 2" RadiusX="10" RadiusY="10"/>
+         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12">
+          <Path Data="M14,19 V6 M9,11 L14,6 L19,11 M5,22 H23" Width="28" Height="28" Stroke="#2F5D4B" StrokeThickness="1.8"
+                StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Center"/>
+          <TextBlock x:Name="DropHint" Text="{DynamicResource Ui.184}" FontWeight="SemiBold" Foreground="#2F5D4B" TextWrapping="Wrap"
+                     TextAlignment="Center" Margin="0,8"/>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+           <TextBlock Text="{DynamicResource Ui.185}" FontSize="13" Foreground="#2F5D4B" VerticalAlignment="Center" Margin="0,0,8,0"/>
+           <Button x:Name="PickAttachmentsButton" Content="{DynamicResource Ui.186}" Style="{StaticResource Mini}" FontSize="13" Padding="12,5"
+                   BorderBrush="#B9CBBF" Click="PickAttachmentsClick"/>
+          </StackPanel>
+         </StackPanel>
+        </Grid>
+        <DockPanel Margin="0,12,0,0">
+         <TextBlock Text="{DynamicResource Ui.195}" FontSize="12" Foreground="{StaticResource Secondary}" VerticalAlignment="Center"/>
+         <TextBlock x:Name="VaultSpaceText" DockPanel.Dock="Right" FontSize="12" Foreground="#43564D" VerticalAlignment="Center"/>
+         <Grid x:Name="VaultSpaceTrack" Height="6" Margin="10,0" VerticalAlignment="Center">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="0*"/><ColumnDefinition Width="1*"/></Grid.ColumnDefinitions>
+          <Border Grid.ColumnSpan="2" Background="#E3E8E5" CornerRadius="3"/>
+          <Border x:Name="VaultSpaceFill" Background="#2F7059" CornerRadius="3"/>
+         </Grid>
+        </DockPanel>
+       </StackPanel>
+       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+        <Button x:Name="RevertButton" Click="RevertClick" Style="{StaticResource Plain}" Visibility="Collapsed"/>
+        <Button Content="{DynamicResource Ui.34}" Click="DeleteItemClick" Style="{StaticResource Danger}"/>
+       </StackPanel>
       </StackPanel></ScrollViewer>
      </DockPanel>
+    </Grid>
     </Grid>
    </Grid>
   </Grid>
  </DockPanel>
+  <!-- Quick search (Ctrl+K): a dimmed window with one panel on top, as in Palette.dc.html, without the actions block. -->
+  <Grid x:Name="PaletteOverlay" Visibility="Collapsed" Background="#73182821" MouseLeftButtonDown="PaletteBackdropDown">
+   <Border x:Name="PalettePanel" MaxWidth="640" VerticalAlignment="Top" Margin="16,92,16,16" Background="White"
+           BorderBrush="#C9D6CD" BorderThickness="1" CornerRadius="12">
+    <Border.Effect><DropShadowEffect BlurRadius="40" ShadowDepth="16" Direction="270" Opacity="0.35" Color="#102019"/></Border.Effect>
+    <DockPanel>
+     <Border DockPanel.Dock="Top" BorderBrush="#DFE6E2" BorderThickness="0,0,0,1" Padding="16,12">
+      <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Path Width="18" Height="18" Stretch="Uniform" StrokeThickness="1.6" Stroke="{StaticResource Green}" Data="{StaticResource SearchIcon}"
+             VerticalAlignment="Center"/>
+       <TextBox x:Name="PaletteQuery" Grid.Column="1" FontSize="17" BorderThickness="0" Background="Transparent" Padding="0,4" Margin="10,0"
+                TextChanged="PaletteQueryChanged" PreviewKeyDown="PaletteKeyDown" AutomationProperties.Name="{DynamicResource Ui.130}"/>
+       <Border Grid.Column="2" Background="#E9EFEA" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+        <TextBlock Text="Esc" FontSize="11" Foreground="#43564D"/>
+       </Border>
+      </Grid>
+     </Border>
+     <Border DockPanel.Dock="Bottom" Background="#F4F6F1" BorderBrush="#DFE6E2" BorderThickness="0,1,0,0" Padding="16,10" CornerRadius="0,0,12,12">
+      <WrapPanel x:Name="PaletteHints">
+       <TextBlock FontSize="12" Foreground="#43564D" Margin="0,0,16,0"><Run Text="Enter" FontWeight="Bold"/><Run Text=" — "/><Run Text="{DynamicResource Ui.133}"/></TextBlock>
+       <TextBlock FontSize="12" Foreground="#43564D" Margin="0,0,16,0"><Run Text="Ctrl+Enter" FontWeight="Bold"/><Run Text=" — "/><Run Text="{DynamicResource Ui.134}"/></TextBlock>
+       <TextBlock FontSize="12" Foreground="#43564D" Margin="0,0,16,0"><Run Text="Tab" FontWeight="Bold"/><Run Text=" — "/><Run Text="{DynamicResource Ui.135}"/></TextBlock>
+       <TextBlock FontSize="12" Foreground="#43564D"><Run Text="↑ ↓" FontWeight="Bold"/><Run Text=" — "/><Run Text="{DynamicResource Ui.136}"/></TextBlock>
+      </WrapPanel>
+     </Border>
+     <TextBlock x:Name="PaletteCount" DockPanel.Dock="Top" FontSize="11" Foreground="{StaticResource Secondary}" Margin="16,10,16,4"
+                AutomationProperties.LiveSetting="Polite"/>
+     <ListBox x:Name="PaletteList" MaxHeight="380" Margin="0,0,0,8" MouseDoubleClick="PaletteDoubleClick" Focusable="False"
+              ScrollViewer.VerticalScrollBarVisibility="Auto">
+      <ListBox.ItemContainerStyle>
+       <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+        <Setter Property="Padding" Value="16,9"/>
+        <Setter Property="Focusable" Value="False"/>
+       </Style>
+      </ListBox.ItemContainerStyle>
+      <ListBox.ItemTemplate>
+       <DataTemplate>
+        <Grid>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <Border Width="34" Height="34" CornerRadius="8" Background="{Binding BadgeBrush}" Margin="0,0,12,0" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Letter}" Foreground="#24493B" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+         </Border>
+         <StackPanel Grid.Column="1" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="{Binding Info}" FontSize="12" Foreground="{StaticResource Secondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+         </StackPanel>
+         <StackPanel x:Name="EnterHint" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0" Visibility="Collapsed">
+          <Border Background="White" BorderBrush="#B9CBBF" BorderThickness="1" CornerRadius="4" Padding="6,1">
+           <TextBlock Text="Enter" FontSize="12" Foreground="#1D5944"/>
+          </Border>
+          <TextBlock Text="{Binding EnterAction}" FontSize="12" Foreground="#1D5944" Margin="6,0,0,0" VerticalAlignment="Center"/>
+         </StackPanel>
+        </Grid>
+        <DataTemplate.Triggers>
+         <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+          <Setter TargetName="EnterHint" Property="Visibility" Value="Visible"/>
+         </DataTrigger>
+        </DataTemplate.Triggers>
+       </DataTemplate>
+      </ListBox.ItemTemplate>
+     </ListBox>
+    </DockPanel>
+   </Border>
+  </Grid>
+  <!-- Busy indicator: open, save and new version files run off the UI thread; the window keeps drawing
+       but takes no clicks until they finish. -->
+  <Grid x:Name="BusyOverlay" Visibility="Collapsed" Background="#40182821" Cursor="Wait">
+   <Border Background="White" BorderBrush="#C9D6CD" BorderThickness="1" CornerRadius="12" Padding="22,16"
+           HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.25" Color="#102019"/></Border.Effect>
+    <StackPanel Orientation="Horizontal">
+     <Path x:Name="BusySpinner" Width="22" Height="22" Stroke="{StaticResource Green}" StrokeThickness="3" StrokeStartLineCap="Round"
+           StrokeEndLineCap="Round" Data="M11,2 A9,9 0 1 1 2,11" RenderTransformOrigin="0.5,0.5" VerticalAlignment="Center">
+      <Path.RenderTransform><RotateTransform x:Name="BusyRotation"/></Path.RenderTransform>
+     </Path>
+     <TextBlock x:Name="BusyText" FontSize="15" FontWeight="SemiBold" Margin="12,0,0,0" VerticalAlignment="Center"
+                AutomationProperties.LiveSetting="Assertive"/>
+    </StackPanel>
+   </Border>
+  </Grid>
+ </Grid>
 </Window>

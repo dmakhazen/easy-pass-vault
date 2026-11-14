@@ -14,9 +14,19 @@ public partial class MainWindow
     private (string Id, string FolderId)? draggedItem;
     private Point dragStart;
 
+    /// <summary>True when the mouse went down on a button inside a row: a button click is never a drag.</summary>
+    private static bool IsInsideButton(object source, DependencyObject row)
+    {
+        for (var element = source as DependencyObject; element is not null && element != row;
+            element = element is Visual ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element))
+            if (element is System.Windows.Controls.Primitives.ButtonBase) return true;
+        return false;
+    }
+
     private void FolderHeaderPressed(object sender, MouseButtonEventArgs e)
     {
-        dragCandidate = sender is Border { Tag: FolderInfo { ParentId: not null } folder }
+        dragCandidate = sender is Border { Tag: FolderInfo { ParentId: not null } folder } header &&
+            !IsInsideButton(e.OriginalSource, header)
             ? (FolderDragFormat, folder.Id)
             : null;
         dragStart = e.GetPosition(this);
@@ -27,7 +37,8 @@ public partial class MainWindow
         draggedItem = null;
         dragCandidate = null;
         if (e.OriginalSource is not DependencyObject source ||
-            ItemsControl.ContainerFromElement(ItemList, source) is not ListBoxItem { Content: VaultItem item }) return;
+            ItemsControl.ContainerFromElement(ItemList, source) is not ListBoxItem { Content: VaultItem item } row ||
+            IsInsideButton(source, row)) return;
         string sourceFolder = pendingItems.TryGetValue(item.Id, out var pending) ? pending.Item.FolderId : item.FolderId;
         draggedItem = (item.Id, sourceFolder);
         dragCandidate = (ItemDragFormat, item.Id);
@@ -86,7 +97,7 @@ public partial class MainWindow
             return;
         }
         if (folder is null || session is not { } vault) return;
-        if (!await Run(T("Сохранение…"), () => vault.MoveFolder(folder.Id, destination.Id))) return;
+        if (!await Run(T("Сохраняю и шифрую…"), () => vault.MoveFolder(folder.Id, destination.Id))) return;
 
         draft = original = null;
         folderId = folder.Id;

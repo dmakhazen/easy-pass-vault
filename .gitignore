@@ -43,3 +43,6 @@ TestResults/
 /AGENTS.md
 /REQUIREMENTS.md
 /prototype/
+
+# Remembered window size and view mode, written next to the EXE
+easy-pass-vault.window.json

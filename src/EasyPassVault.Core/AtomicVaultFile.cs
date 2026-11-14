@@ -3,14 +3,19 @@ using System.Security.Cryptography;
 namespace EasyPassVault.Core;
 
 // The injectable stage hook is for fault-injection tests, never for handling plaintext.
-public sealed class AtomicVaultFile(Action<string>? stage = null)
+// The size limit guards against junk files and runaway memory use; it is not a limit of the KDBX format.
+// Tests may pass a smaller limit to check the refusal without building a huge file.
+public sealed class AtomicVaultFile(Action<string>? stage = null, long maxFileBytes = AtomicVaultFile.MaxFileBytes)
 {
-    public const int MaxFileBytes = 32 * 1024 * 1024;
+    public const int MaxFileBytes = 512 * 1024 * 1024;
+    public const string TooLargeMessage = "Хранилище стало бы больше 512 МБ. Изменения не записаны, файл на диске не изменён. Удалите крупные вложения и сохраните снова.";
 
+    /// <summary>Reads a whole vault file. The size is checked before any buffer is allocated.</summary>
     public static byte[] Read(string path)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        if (stream.Length is < 12 or > MaxFileBytes) throw new VaultException("Недопустимый размер хранилища (максимум 32 МБ).");
+        if (stream.Length is < 12 or > MaxFileBytes)
+            throw new VaultException("Недопустимый размер файла хранилища: он пустой или больше 512 МБ. Файл не расшифровывался и не изменён.");
         var bytes = new byte[(int)stream.Length];
         stream.ReadExactly(bytes);
         return bytes;
@@ -45,7 +50,7 @@ public sealed class AtomicVaultFile(Action<string>? stage = null)
 
     private void WriteCore(string lockPath, Func<string> check, byte[] ciphertext, bool replace)
     {
-        if (ciphertext.Length > MaxFileBytes) throw new VaultException("Хранилище превышает ограничение 32 МБ.");
+        if (ciphertext.Length > maxFileBytes) throw new VaultException(TooLargeMessage);
         string? temp = null;
         FileStream? gate = null;
         try
@@ -82,7 +87,14 @@ public sealed class AtomicVaultFile(Action<string>? stage = null)
             if (File.Exists(path)) throw new VaultException("Файл уже существует. Выберите другое имя; существующее хранилище не перезаписано.");
             return;
         }
-        if (!File.Exists(path) || !CryptographicOperations.FixedTimeEquals(SHA256.HashData(Read(path)), expected))
+        if (!File.Exists(path) || !CryptographicOperations.FixedTimeEquals(HashFile(path), expected))
             throw new VaultException("Файл изменён или перемещён другой программой. Изменения не записаны. Сначала откройте актуальную копию.");
+    }
+
+    // Streams the file: a large vault is hashed without a second copy of it in memory.
+    private static byte[] HashFile(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024);
+        return SHA256.HashData(stream);
     }
 }
