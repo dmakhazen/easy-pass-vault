@@ -414,6 +414,14 @@ try
             "mailto:demo@example.com", "\\\\server\\share", "cmd /c calc", "https://example.com\ncalc" })
             Check(!SiteAddress.TryGetWebUri(bad, out _), "A non-web address was accepted: " + bad);
     });
+    Test("text matches are found without case, left to right, without overlaps and up to the limit", () =>
+    {
+        string Starts(string? text, string? query, int limit = int.MaxValue) => string.Join(",", TextMatches.Find(text, query, limit));
+        Check(Starts("Резерв и резервная копия, РЕЗЕРВ", "резерв") == "0,9,26", "Cyrillic matches are case sensitive or misplaced");
+        Check(Starts("aaaa", "aa") == "0,2" && Starts("abcabc", "ABC", 1) == "0", "Matches overlap or ignore the limit");
+        Check(Starts("text", "") == "" && Starts("", "x") == "" && Starts(null, "x") == "" && Starts("text", null) == "" &&
+            Starts("text", "missing") == "", "An empty query or text produced matches");
+    });
     Test("quick search finds titles, logins, sites and text, ignores case and never looks at passwords", () =>
     {
         var ru = System.Globalization.CultureInfo.GetCultureInfo("ru");

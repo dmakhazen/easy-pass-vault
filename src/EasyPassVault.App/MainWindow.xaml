@@ -1,5 +1,13 @@
 <Window x:Class="EasyPassVault.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:EasyPassVault.App" Title="easy-pass-vault" Icon="Assets/vault.ico" Width="1180" Height="760" MinWidth="950" MinHeight="640" WindowStartupLocation="CenterScreen" UseLayoutRounding="True" Closing="OnClosing">
- <Window.Resources><local:ItemTitleConverter x:Key="ItemTitleConverter"/></Window.Resources>
+ <Window.Resources>
+  <local:ItemTitleConverter x:Key="ItemTitleConverter"/>
+  <!-- A folder of the path above the item's title: looks like a link, the frame appears under the mouse. -->
+  <Style x:Key="Crumb" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/>
+   <Setter Property="Padding" Value="6,0"/><Setter Property="Height" Value="26"/><Setter Property="Margin" Value="0"/><Setter Property="FontSize" Value="13"/>
+   <Setter Property="Foreground" Value="#1D5944"/>
+  </Style>
+ </Window.Resources>
  <Grid x:Name="Root">
  <DockPanel>
   <!-- Header: one 56 px row. Rare actions live in the "⋯" menu. -->
@@ -275,8 +283,8 @@
      <DockPanel>
       <StackPanel DockPanel.Dock="Top" Margin="14,14,14,6">
        <Grid>
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <TextBox x:Name="Search" TextChanged="SearchChanged" Background="White" ToolTip="{DynamicResource Ui.19}" AutomationProperties.Name="{DynamicResource Ui.20}"/>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBox x:Name="Search" TextChanged="SearchChanged" PreviewKeyDown="SearchKeyDown" Background="White" ToolTip="{DynamicResource Ui.19}" AutomationProperties.Name="{DynamicResource Ui.20}"/>
         <TextBlock x:Name="SearchHint" Text="{DynamicResource Ui.20}" Foreground="{StaticResource Secondary}" Margin="11,0"
                    VerticalAlignment="Center" IsHitTestVisible="False">
          <TextBlock.Style>
@@ -290,7 +298,17 @@
           </Style>
          </TextBlock.Style>
         </TextBlock>
-        <Button x:Name="ClearSearchButton" Grid.Column="1" Content="×" Click="ClearSearchClick"
+        <!-- Matches in the text of the open item: "2 / 5". Enter and the arrow button go to the next one. -->
+        <Border x:Name="SearchCountBox" Background="{StaticResource ActiveSearchBackground}" CornerRadius="4" Padding="5,1" Margin="0,0,6,0"
+                HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed">
+         <TextBlock x:Name="SearchCount" FontSize="12" Foreground="#1D5944" AutomationProperties.LiveSetting="Polite"/>
+        </Border>
+        <Button x:Name="NextMatchButton" Grid.Column="1" Style="{StaticResource Primary}" Padding="9,4" Margin="4,0,0,0"
+                Click="NextMatchClick" Visibility="Collapsed">
+         <Path Data="M8,3 V13 M3.5,8.5 L8,13 L12.5,8.5" Width="16" Height="16" StrokeThickness="1.8" Stroke="White"
+               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+        </Button>
+        <Button x:Name="ClearSearchButton" Grid.Column="2" Content="×" Click="ClearSearchClick"
                 ToolTip="{DynamicResource Ui.93}" AutomationProperties.Name="{DynamicResource Ui.93}"
                 Padding="8,4" Margin="4,0,0,0" Visibility="Collapsed"/>
        </Grid>
@@ -335,9 +353,16 @@
                       FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
           <StackPanel Grid.Column="1" VerticalAlignment="Center">
-           <TextBlock Text="{Binding Converter={StaticResource ItemTitleConverter}}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-           <TextBlock Text="{Binding Converter={StaticResource ItemTitleConverter}, ConverterParameter=sub}" FontSize="12"
-                      Foreground="{StaticResource Secondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+           <TextBlock local:SearchHighlight.Text="{Binding Converter={StaticResource ItemTitleConverter}}"
+                      local:SearchHighlight.Query="{Binding Converter={StaticResource ItemTitleConverter}, ConverterParameter=query}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+           <!-- While a search is on, the second line is the folder the item lies in. -->
+           <DockPanel Margin="0,2,0,0">
+            <Path DockPanel.Dock="Left" Data="M 0,1 L 6,1 L 8,3 L 16,3 L 16,13 L 0,13 Z" Fill="#56836E" Width="12" Height="10" Stretch="Uniform"
+                  VerticalAlignment="Center" Margin="0,0,5,0"
+                  Visibility="{Binding Converter={StaticResource ItemTitleConverter}, ConverterParameter=pathIcon}"/>
+            <TextBlock Text="{Binding Converter={StaticResource ItemTitleConverter}, ConverterParameter=sub}" FontSize="12"
+                       Foreground="{StaticResource Secondary}" TextTrimming="CharacterEllipsis"/>
+           </DockPanel>
           </StackPanel>
           <!-- Attachments: a paper clip with their number (Attachments.dc.html). -->
           <StackPanel x:Name="ClipBadge" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
@@ -399,6 +424,8 @@
        <Button x:Name="BackButton" Click="BackToListClick" HorizontalAlignment="Left" Margin="0,0,0,14" Visibility="Collapsed">
         <TextBlock><Run Text="←"/><Run Text=" "/><Run Text="{DynamicResource Ui.103}"/></TextBlock>
        </Button>
+       <!-- Where the item lies: every folder of the path is a button that opens that folder. -->
+       <WrapPanel x:Name="FolderCrumbs" Margin="-6,0,0,4"/>
        <TextBlock x:Name="KindCaption" Foreground="{StaticResource Secondary}" FontSize="12" TextTrimming="CharacterEllipsis"/>
        <TextBlock x:Name="EditorTitle" FontSize="24" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,4,0,16"/>
        <Grid>

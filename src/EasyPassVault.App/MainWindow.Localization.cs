@@ -288,6 +288,9 @@ easy-pass-vault: документ с замком|easy-pass-vault: locked docume
 Файл не в кодировке UTF-8: нечитаемые символы заменены на «�».|The file is not UTF-8: unreadable characters are replaced with “�”.|文件不是 UTF-8 编码：无法读取的字符已替换为“�”。|फ़ाइल UTF-8 में नहीं है: न पढ़े जा सकने वाले वर्ण “�” से बदले गए हैं।|El archivo no está en UTF-8: los caracteres ilegibles se sustituyen por «�».|الملف ليس بترميز UTF-8: استُبدلت الأحرف غير المقروءة بـ «�».|Le fichier n’est pas en UTF-8 : les caractères illisibles sont remplacés par « � ».|ফাইলটি UTF-8 নয়: অপাঠ্য অক্ষর “�” দিয়ে বদলানো হয়েছে।|O arquivo não está em UTF-8: caracteres ilegíveis foram substituídos por “�”.|Berkas bukan UTF-8: karakter yang tak terbaca diganti dengan “�”.
 Вложение больше 20 МБ ({0}). Просмотр может открываться медленно. Открыть?|The attachment is larger than 20 MB ({0}). The preview may open slowly. Open it?|附件大于 20 MB（{0}）。预览可能打开较慢。要打开吗？|अनुलग्नक 20 MB से बड़ा है ({0})। पूर्वावलोकन धीरे खुल सकता है। खोलें?|El adjunto supera 20 MB ({0}). La vista previa puede tardar en abrirse. ¿Abrirla?|المرفق أكبر من 20 م.ب ({0}). قد تُفتح المعاينة ببطء. هل تريد فتحها؟|La pièce jointe dépasse 20 Mo ({0}). L’aperçu peut s’ouvrir lentement. L’ouvrir ?|সংযুক্তিটি 20 MB-এর বেশি ({0})। প্রিভিউ ধীরে খুলতে পারে। খুলবেন?|O anexo tem mais de 20 MB ({0}). A visualização pode abrir devagar. Abrir?|Lampiran lebih dari 20 MB ({0}). Pratinjau mungkin terbuka lambat. Buka?
 Текст скопирован|Text copied|文本已复制|टेक्स्ट कॉपी हो गया|Texto copiado|تم نسخ النص|Texte copié|লেখা কপি হয়েছে|Texto copiado|Teks disalin
+Найдено {0} · во всех папках|Found {0} · in all folders|找到 {0} 项 · 所有文件夹|{0} मिले · सभी फ़ोल्डरों में|{0} encontrados · en todas las carpetas|تم العثور على {0} · في كل المجلدات|{0} trouvés · dans tous les dossiers|{0}টি পাওয়া গেছে · সব ফোল্ডারে|{0} encontrados · em todas as pastas|Ditemukan {0} · di semua folder
+Следующее совпадение (Enter)|Next match (Enter)|下一个匹配项 (Enter)|अगला मिलान (Enter)|Siguiente coincidencia (Enter)|التطابق التالي (Enter)|Occurrence suivante (Entrée)|পরবর্তী মিল (Enter)|Próxima ocorrência (Enter)|Kecocokan berikutnya (Enter)
+Перейти в папку|Go to folder|转到文件夹|फ़ोल्डर पर जाएँ|Ir a la carpeta|الانتقال إلى المجلد|Aller au dossier|ফোল্ডারে যান|Ir para a pasta|Buka folder
 """;
 }
 
@@ -295,7 +298,16 @@ public sealed class ItemTitleConverter : IValueConverter
 {
     internal Func<string, string> Translate { get; set; } = static text => text;
 
-    /// <summary>Without a parameter: the title. "letter": first letter for the square badge. "sub": second line.</summary>
+    /// <summary>While a search is on: the folder path of an item, shown as its second line. Otherwise null.</summary>
+    internal Func<VaultItem, string>? SearchPath { get; set; }
+
+    /// <summary>The search query to mark in the titles; empty without a search.</summary>
+    internal string SearchQuery { get; set; } = "";
+
+    /// <summary>
+    /// Without a parameter: the title. "letter": first letter for the square badge. "sub": second line.
+    /// "pathIcon": whether the second line is a folder path and gets the folder icon. "query": the search query.
+    /// </summary>
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         if (value is not VaultItem item) return "";
@@ -303,6 +315,9 @@ public sealed class ItemTitleConverter : IValueConverter
         return (parameter as string) switch
         {
             "letter" => StringInfo.GetNextTextElement(title.TrimStart()).ToUpper(culture),
+            "query" => SearchQuery,
+            "pathIcon" => SearchPath is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible,
+            "sub" when SearchPath is not null => SearchPath(item),
             "sub" => item.Kind == ItemKind.Text ? Translate("Текстовый файл") : item.Login,
             _ => title
         };

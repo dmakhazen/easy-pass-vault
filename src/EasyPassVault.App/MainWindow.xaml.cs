@@ -234,7 +234,6 @@ public partial class MainWindow : Window
             var vaultFolders = VaultSorting.SortFolders(session.Folders, layout.FolderSort, UiCulture).ToArray();
             vaultFolders[0] = vaultFolders[0] with { Name = T("Корень хранилища") };
             RefreshFolderTree(vaultFolders);
-            FolderTitle.Text = folderId.Length == 0 ? T("Все папки") : ((FolderInfo)folderNodes[folderId].Tag).Name;
             var pickerFolders = vaultFolders.Prepend(new FolderInfo("", T("Все папки"))).ToArray();
             CompactFolderPicker.ItemsSource = pickerFolders;
             CompactFolderPicker.SelectedItem = pickerFolders.First(f => f.Id == folderId);
@@ -243,11 +242,19 @@ public partial class MainWindow : Window
             string query = Search.Text.Trim();
             var visibleItems = GetVisibleItems(session);
             RefreshFolderCounts(visibleItems);
-            var matches = visibleItems.Where(x => (folderId.Length == 0 || x.FolderId == folderId) &&
+            // A query looks through every folder: the selected one applies only to the plain list.
+            bool searching = query.Length > 0;
+            var matches = visibleItems.Where(x => (searching || folderId.Length == 0 || x.FolderId == folderId) &&
                 new[] { x.Title, x.Login, x.Site, x.Text }.Any(s => s.Contains(query, StringComparison.OrdinalIgnoreCase))).ToList();
             var items = VaultSorting.SortItems(category is null ? matches : matches.Where(x => x.Kind == category),
                 layout.ItemSort, UiCulture, item => string.IsNullOrWhiteSpace(item.Title) ? T(item.DisplayTitle) : item.Title);
             SearchNoResults.Visibility = query.Length > 0 && items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            FolderTitle.Text = searching ? T("Найдено {0} · во всех папках").Replace("{0}", items.Count.ToString(UiCulture))
+                : folderId.Length == 0 ? T("Все папки") : ((FolderInfo)folderNodes[folderId].Tag).Name;
+            FolderList.Opacity = AllFoldersButton.Opacity = searching ? 0.55 : 1;
+            var rowTexts = (ItemTitleConverter)Resources["ItemTitleConverter"];
+            rowTexts.SearchPath = searching ? item => FolderPathText(item.FolderId) : null;
+            rowTexts.SearchQuery = query;
             ItemList.ItemsSource = items;
             ItemList.SelectedItem = items.FirstOrDefault(x => x.Id == draft?.Id);
             AllCategory.Content = T("Все") + $" {matches.Count}";
@@ -346,7 +353,7 @@ public partial class MainWindow : Window
             TextCaption.Text = draft.Kind == ItemKind.Text ? T("Содержимое файла") : T("Заметка");
             TextField.MinHeight = draft.Kind == ItemKind.Text ? 280 : 92;
         }
-        finally { updating = false; }
+        finally { updating = false; UpdateSearchMarks(center: false); }
     }
 
     private void UpdateSaveState()
@@ -358,10 +365,10 @@ public partial class MainWindow : Window
         RevertButton.IsEnabled = Dirty;
         RevertButton.Content = T(original is null ? "Закрыть черновик" : "Отменить изменения");
         UpdateCopyState();
+        UpdateCrumbs();
         if (draft is null) return;
         EditorTitle.Text = string.IsNullOrWhiteSpace(draft.Title) ? T(draft.DisplayTitle) : draft.Title;
-        string kind = draft.Kind == ItemKind.Text ? T("Файлы") : T("Записи");
-        KindCaption.Text = ItemFolder.SelectedItem is FolderInfo folder ? $"{kind} · {folder.Name}" : kind;
+        KindCaption.Text = draft.Kind == ItemKind.Text ? T("Файлы") : T("Записи"); // The folder is in the path above.
     }
 
     private void FieldChanged(object sender, TextChangedEventArgs e) => ReadDraft();
@@ -385,6 +392,7 @@ public partial class MainWindow : Window
         UpdateSaveState();
         UpdateFolderActions();
         UpdateTextView();
+        UpdateSearchMarks(center: false);
     }
 
     private void TrackDraft()
@@ -437,7 +445,9 @@ public partial class MainWindow : Window
 
     private void SelectFolder(string id)
     {
-        if (session is null || busy || id == folderId) return;
+        if (session is null || busy || (id == folderId && !Searching)) return;
+        // Choosing a folder leaves the search: the list shows that folder again.
+        if (Searching) { updating = true; Search.Clear(); updating = false; }
         folderId = id;
         draft = original = null;
         RefreshLists(); ShowDraft();
@@ -458,6 +468,8 @@ public partial class MainWindow : Window
             SearchNoResults.Visibility = Visibility.Collapsed;
         }
         if (!updating && !busy) RefreshLists();
+        searchHit = 0;
+        UpdateSearchMarks(center: true);
     }
     private void ClearSearchClick(object sender, RoutedEventArgs e)
     {

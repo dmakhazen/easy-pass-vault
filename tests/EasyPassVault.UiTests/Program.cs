@@ -592,6 +592,84 @@ internal static class Program
             Assert(Control<Grid>("EditorPane").Visibility == Visibility.Visible && Control<TextBox>("TitleField").Text == "Почта Example" &&
                 overlay.Visibility == Visibility.Collapsed, "Tab did not open the entry in the compact view");
             Call("SetCompact", false);
+
+            // The search above the list looks through every folder; the open item shows its folder path as buttons;
+            // Enter and the arrow button walk over the matches in the text, then over the found items.
+            var mainSearch = Control<TextBox>("Search");
+            var mainList = Control<ListBox>("ItemList");
+            var matchCount = Control<TextBlock>("SearchCount");
+            var nextMatch = Control<Button>("NextMatchButton");
+            var folderTitle = Control<TextBlock>("FolderTitle");
+            void Settle() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
+            string DraftId() => ((VaultItem)Get("draft")!).Id;
+            string rootId = session.Folders[0].Id;
+            Call("SelectFolder", rootId);
+            Assert(mainList.Items.Count == 0 && nextMatch.Visibility == Visibility.Collapsed, "The vault root lists items of nested folders");
+            mainSearch.Text = "E";
+            Assert(mainList.Items.Count == 2 && folderTitle.Text == "Найдено 2 · во всех папках" &&
+                nextMatch.Visibility == Visibility.Visible && (string)nextMatch.ToolTip == "Следующее совпадение (Enter)" &&
+                (string)Get("folderId")! == rootId && Control<TreeView>("FolderList").Opacity < 1,
+                "Search did not look through every folder");
+            Key(mainSearch, "SearchKeyDown", System.Windows.Input.Key.Enter);
+            Assert(Get("draft") is VaultItem && mainList.SelectedIndex == 0, "Enter in the search did not open the first found item");
+            mainList.SelectedItem = mainList.Items.Cast<VaultItem>().Single(item => item.Id == textItem.Id);
+            Settle();
+            Assert(DraftId() == textItem.Id && matchCount.Text == "1 / 5", "The open file did not count the matches in its text");
+            var markup = Get("markupView")!;
+            int MarkedAreas() => (int)markup.GetType().GetProperty("HitAreas", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(markup)!;
+            Rect? CurrentMark() => (Rect?)markup.GetType().GetProperty("CurrentHit", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(markup);
+            Capture("search-all-folders"); Settle();
+            Assert(MarkedAreas() == 5 && CurrentMark() is { Width: > 0 }, "The matches were not marked in the text: " + MarkedAreas());
+            var firstMark = CurrentMark()!.Value;
+            Click(nextMatch);
+            Settle();
+            Assert(matchCount.Text == "2 / 5" && DraftId() == textItem.Id && CurrentMark() is { } secondMark && secondMark != firstMark,
+                "The arrow button did not go to the next match");
+            Capture("search-all-folders");
+            for (int step = 0; step < 3; step++) Call("NextMatch");
+            Assert(matchCount.Text == "5 / 5" && DraftId() == textItem.Id, "The last match of the text was skipped");
+            Call("NextMatch");
+            Assert(DraftId() != textItem.Id && mainList.SelectedItem is VaultItem { Kind: ItemKind.Login },
+                "After the last match the next found item was not opened");
+            var rowConverter = (System.Windows.Data.IValueConverter)window.Resources["ItemTitleConverter"];
+            object foundFile = mainList.Items.Cast<VaultItem>().Single(item => item.Id == textItem.Id);
+            Assert(((string)rowConverter.Convert(foundFile, typeof(string), "sub", System.Globalization.CultureInfo.InvariantCulture)).EndsWith(" › Synthetic child") &&
+                (Visibility)rowConverter.Convert(foundFile, typeof(Visibility), "pathIcon", System.Globalization.CultureInfo.InvariantCulture) == Visibility.Visible,
+                "Found rows do not show their folder");
+            Assert((string)rowConverter.Convert(foundFile, typeof(string), "query", System.Globalization.CultureInfo.InvariantCulture) == "E",
+                "Found rows do not get the query to mark in their titles");
+            mainList.SelectedItem = mainList.Items.Cast<VaultItem>().Single(item => item.Id == textItem.Id);
+            var crumbs = Control<WrapPanel>("FolderCrumbs").Children.OfType<Button>().ToArray();
+            Assert(crumbs.Select(crumb => (string)crumb.Tag).SequenceEqual([parentId, childId]) &&
+                ((string)crumbs[1].ToolTip).EndsWith("Synthetic child") && Control<TextBlock>("KindCaption").Text == "Файлы",
+                "The open item does not show its folder path");
+            Click(crumbs[0]);
+            Assert(mainSearch.Text.Length == 0 && (string)Get("folderId")! == parentId && DraftId() == textItem.Id &&
+                nextMatch.Visibility == Visibility.Collapsed && matchCount.Text.Length == 0 && Control<TreeView>("FolderList").Opacity == 1,
+                "A folder of the path did not clear the search and open that folder");
+            Settle();
+            Assert(MarkedAreas() == 0, "Marks stayed in the text after the search was cleared");
+            mainSearch.Text = "E";
+            Call("SelectFolder", childId);
+            Assert(mainSearch.Text.Length == 0 && (string)Get("folderId")! == childId && mainList.Items.Count == 1,
+                "Choosing a folder did not leave the search");
+            // A match far down a long text is brought to the middle of the visible part of the editor.
+            mainList.SelectedIndex = 0;
+            var longBox = Control<TextBox>("TextField");
+            var longScroll = Control<ScrollViewer>("EditorScroll");
+            longBox.Text = string.Join('\n', Enumerable.Range(1, 200).Select(number => number == 150 ? "строка с меткой zzz" : "вымышленная строка " + number));
+            Capture("search-long-text");
+            mainSearch.Text = "zzz";
+            Settle(); Capture("search-long-text"); Settle();
+            double markY = longBox.TranslatePoint(new Point(0, CurrentMark()!.Value.Top + CurrentMark()!.Value.Height / 2), longScroll).Y;
+            Assert(matchCount.Text == "1 / 1" && longScroll.VerticalOffset > 0 && Math.Abs(markY - longScroll.ViewportHeight / 2) < 4,
+                $"The match was not brought to the middle of the editor: {markY} of {longScroll.ViewportHeight}");
+            mainSearch.Clear();
+            Call("RevertClick", null, new RoutedEventArgs());
+            mainSearch.Text = "nothing like this";
+            Key(mainSearch, "SearchKeyDown", System.Windows.Input.Key.Enter);
+            Key(mainSearch, "SearchKeyDown", System.Windows.Input.Key.Escape);
+            Assert(mainSearch.Text.Length == 0, "Esc did not clear the search");
             Assert(!Control<Button>("SaveButton").IsEnabled, "Quick search changed the vault");
             Await((Task)Call("LockVault")!);
             using (var reopened = VaultSession.Open(vaultPath, password))

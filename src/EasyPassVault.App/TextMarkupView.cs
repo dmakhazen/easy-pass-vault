@@ -29,13 +29,21 @@ internal sealed class TextMarkupView
     private static readonly Brush BandText = Freeze(Color.FromRgb(0x17, 0x40, 0x2F));
     private static readonly Brush DotBrush = Freeze(Color.FromRgb(0x6F, 0x8A, 0x7C));
     private static readonly Pen RulePen = FreezePen(Color.FromRgb(0xA9, 0xB9, 0xAF));
+    private static readonly Brush HitBrush = Freeze(Color.FromRgb(0xFF, 0xE9, 0x8A));
+    private static readonly Brush CurrentHitBrush = Freeze(Color.FromRgb(0xFF, 0xB3, 0x00));
+    private static readonly Pen CurrentHitPen = FreezePen(Color.FromRgb(0xB3, 0x74, 0x00));
+    private const int MaxHits = 1000;
 
     private readonly TextBox box;
     private readonly MarkupLayer under, over;
     private readonly List<Mark> marks = [];
+    private readonly List<(Rect Area, bool Current)> hits = [];
+    private IReadOnlyList<int> hitStarts = [];
+    private string query = "";
+    private int currentHit = -1;
     private bool scheduled;
 
-    private sealed record Mark(MarkupKind Kind, Rect Line, double TextLeft, bool Active, string Text);
+    private sealed record Mark(MarkupKind Kind, Rect Line, double TextLeft, bool Active, string Text, int TextStart);
 
     public TextMarkupView(TextBox box, MarkupLayer under, MarkupLayer over)
     {
@@ -54,6 +62,23 @@ internal sealed class TextMarkupView
     /// <summary>Headings and separators found by the last update, for tests: kind and whether the marks are hidden.</summary>
     internal IReadOnlyList<(MarkupKind Kind, bool Hidden)> Shown => marks.Select(mark => (mark.Kind, !mark.Active)).ToArray();
 
+    /// <summary>
+    /// The search query to mark yellow in the text and the number of the match to mark stronger (-1: none).
+    /// Drawing only: the text, the selection and the caret are not touched.
+    /// </summary>
+    internal void SetSearch(string query, int current)
+    {
+        if (this.query == query && currentHit == current) return;
+        this.query = query; currentHit = current;
+        Schedule();
+    }
+
+    /// <summary>The first line of the current match in the text box's coordinates, as of the last update.</summary>
+    internal Rect? CurrentHit => hits.Where(hit => hit.Current).Select(hit => (Rect?)hit.Area).FirstOrDefault();
+
+    /// <summary>The number of marked pieces as of the last update, for tests.</summary>
+    internal int HitAreas => hits.Count;
+
     /// <summary>Line positions are known only after layout, so the layers are redrawn after it.</summary>
     private void Schedule()
     {
@@ -66,8 +91,10 @@ internal sealed class TextMarkupView
     {
         scheduled = false;
         marks.Clear();
-        try { Collect(); }
-        catch (InvalidOperationException) { marks.Clear(); } // Layout not ready: draw plain text, the next change redraws.
+        hits.Clear();
+        hitStarts = [];
+        try { Collect(); CollectHits(); }
+        catch (InvalidOperationException) { marks.Clear(); hits.Clear(); } // Layout not ready: draw plain text, the next change redraws.
         under.InvalidateVisual();
         over.InvalidateVisual();
     }
@@ -90,9 +117,38 @@ internal sealed class TextMarkupView
             bool active = focused && selectionStart <= line.Start + line.Length && selectionEnd >= line.Start;
             string shown = line.Kind == MarkupKind.Heading ? text.Substring(line.Start + TextMarkup.HeadingPrefix.Length,
                 line.Length - TextMarkup.HeadingPrefix.Length) : "";
-            marks.Add(new(line.Kind, new Rect(first.X, first.Top, 0, Math.Max(0, bottom - first.Top)), first.X, active, shown));
+            marks.Add(new(line.Kind, new Rect(first.X, first.Top, 0, Math.Max(0, bottom - first.Top)), first.X, active, shown,
+                line.Start + (line.Kind == MarkupKind.Heading ? TextMarkup.HeadingPrefix.Length : 0)));
         }
     }
+
+    /// <summary>One rectangle per line of every match of the query; a match wrapped by the box gives several.</summary>
+    private void CollectHits()
+    {
+        if (query.Length == 0 || box.ActualWidth <= 0) return;
+        string text = box.Text;
+        hitStarts = TextMatches.Find(text, query, MaxHits);
+        if (hitStarts.Count == 0) return;
+        if (!box.IsArrangeValid) box.UpdateLayout();
+        for (int number = 0; number < hitStarts.Count; number++)
+        {
+            Rect area = Rect.Empty;
+            for (int index = hitStarts[number]; index < hitStarts[number] + query.Length; index++)
+            {
+                if (text[index] is '\r' or '\n') continue;
+                Rect left = box.GetRectFromCharacterIndex(index), right = box.GetRectFromCharacterIndex(index, true);
+                if (left.IsEmpty || right.IsEmpty) continue;
+                var glyph = new Rect(new Point(Math.Min(left.X, right.X), left.Top), new Point(Math.Max(left.X, right.X), left.Bottom));
+                if (!area.IsEmpty && Math.Abs(area.Top - glyph.Top) < 0.5) { area.Union(glyph); continue; }
+                if (!area.IsEmpty) hits.Add((area, number == currentHit));
+                area = glyph;
+            }
+            if (!area.IsEmpty) hits.Add((area, number == currentHit));
+        }
+    }
+
+    private static void DrawHit(DrawingContext dc, Rect area, bool current) =>
+        dc.DrawRoundedRectangle(current ? CurrentHitBrush : HitBrush, current ? CurrentHitPen : null, area, 2, 2);
 
     private (double Left, double Right) Inner => (box.BorderThickness.Left + 1, box.ActualWidth - box.BorderThickness.Right - 1);
 
@@ -111,6 +167,7 @@ internal sealed class TextMarkupView
             Math.Max(0, box.ActualWidth - border.Left - border.Right), Math.Max(0, box.ActualHeight - border.Top - border.Bottom)), 5, 5);
         foreach (var mark in marks.Where(mark => mark.Kind == MarkupKind.Heading))
             dc.DrawRoundedRectangle(BandBrush, null, Band(mark), 5, 5);
+        foreach (var hit in hits) DrawHit(dc, hit.Area, hit.Current);
     }
 
     private void DrawOver(DrawingContext dc)
@@ -127,6 +184,14 @@ internal sealed class TextMarkupView
                 // A wrapped heading must stay inside its own lines: fall back to the box's own weight, then cut.
                 if (formatted.Height > band.Height + 0.5) formatted = Format(mark.Text, box.FontWeight, right - mark.TextLeft - 4, dpi);
                 dc.PushClip(new RectangleGeometry(band));
+                // The heading is redrawn here without its "# ", so its matches are marked on the redrawn text.
+                for (int number = 0; number < hitStarts.Count; number++)
+                {
+                    int start = hitStarts[number] - mark.TextStart;
+                    if (start < 0 || start + query.Length > mark.Text.Length) continue;
+                    if (formatted.BuildHighlightGeometry(new Point(mark.TextLeft, mark.Line.Top), start, query.Length) is { } shape)
+                        DrawHit(dc, shape.Bounds, number == currentHit);
+                }
                 dc.DrawText(formatted, new Point(mark.TextLeft, mark.Line.Top));
                 dc.Pop();
             }
