@@ -23,6 +23,8 @@ public partial class MainWindow
         JsonView.Visibility = jsonView ? Visibility.Visible : Visibility.Collapsed;
         PlainViewButton.Style = (Style)FindResource(jsonView ? "Segment" : "SegmentActive");
         JsonViewButton.Style = (Style)FindResource(jsonView ? "SegmentActive" : "Segment");
+        // The generator needs an open item whose text can be edited: the JSON view is read-only.
+        GeneratePasswordButton.IsEnabled = draft is not null && !jsonView;
     }
 
     private void SetJsonView(bool on)

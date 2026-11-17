@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         markupView = new TextMarkupView(TextField, TextUnder, TextOver);
+        EditorFields.AddHandler(System.Windows.Input.Keyboard.GotKeyboardFocusEvent,
+            new System.Windows.Input.KeyboardFocusChangedEventHandler(TrackGeneratorTarget), handledEventsToo: true);
         InitAttachments();
         for (int i = 0; i < Languages.Length; i++)
         {
@@ -149,7 +151,7 @@ public partial class MainWindow : Window
         LockButton.Visibility = Visibility.Visible;
         VersionActions.Visibility = Visibility.Visible;
         NewFileMenuItem.Visibility = ExportMenuItem.Visibility = VersionsMenuItem.Visibility = MenuSeparator.Visibility =
-            QuickSearchButton.Visibility = Visibility.Visible;
+            QuickSearchButton.Visibility = GeneratePasswordButton.Visibility = Visibility.Visible;
         welcomePath = null;
         RecentPassword.Clear();
         if (session is not null) RememberRecent(session.FilePath);
@@ -636,7 +638,7 @@ public partial class MainWindow : Window
         LockButton.Visibility = Visibility.Collapsed;
         VersionActions.Visibility = Visibility.Collapsed;
         NewFileMenuItem.Visibility = ExportMenuItem.Visibility = VersionsMenuItem.Visibility = MenuSeparator.Visibility =
-            QuickSearchButton.Visibility = Visibility.Collapsed;
+            QuickSearchButton.Visibility = GeneratePasswordButton.Visibility = Visibility.Collapsed;
         UpdateVaultHeader();
         UpdateWelcome();
         FocusWelcomePassword();

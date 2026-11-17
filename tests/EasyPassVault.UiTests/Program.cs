@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -337,8 +338,9 @@ internal static class Program
             Capture("login-editor");
 
             // Password generator: "Use in entry" puts the password into the draft like typing does; nothing is saved.
-            Assert(Control<Button>("GeneratePasswordButton").IsVisible || Control<Button>("GeneratePasswordButton").Visibility == Visibility.Visible,
-                "The generator button is missing from the password row");
+            Assert(Control<Button>("GeneratePasswordButton") is { Visibility: Visibility.Visible, IsEnabled: true } generatorButton &&
+                LogicalDescendants<Button>(Control<StackPanel>("LoginFields")).All(button => button != generatorButton),
+                "The generator button must be in the header, enabled for an open entry, and no longer in the password row");
             Assert(Control<StackPanel>("TextTools").Visibility == Visibility.Visible, "The note of an entry has no heading and separator buttons");
             var generator = (Window)Call("CreateGeneratorWindow")!;
             string generated = (string)generator.GetType().GetProperty("Password")!.GetValue(generator)!;
@@ -355,7 +357,26 @@ internal static class Program
             Assert(Control<PasswordBox>("PasswordField").Password == generated && Control<Button>("SaveButton").IsEnabled &&
                 Control<Button>("RevertButton").IsEnabled && status.Text == "Пароль подставлен. Сохраните запись.",
                 "The generated password did not become an unsaved change of the draft");
-            Assert(session.GetItem(session.Items.Single().Id).Password == "Fictional-UI-secret", "Using a generated password saved the vault");
+            Assert(session.GetItem(session.Items.Single().Id).Password == "Fictional-UI-secret", "Using a generated password saved the vault");            Assert((string)applyGenerated.Content == "Подставить в пароль", "The generator did not name the password field as the destination");
+            // With the caret in the note the password goes into the note at the caret; the password field is left alone.
+            {
+                var note = Control<TextBox>("TextField");
+                string noteBefore = note.Text;
+                note.Text = "Synthetic note: ";
+                note.Select(note.Text.Length, 0);
+                note.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, 0, null, note) { RoutedEvent = Keyboard.GotKeyboardFocusEvent });
+                var noteGenerator = (Window)Call("CreateGeneratorWindow")!;
+                string notePassword = (string)noteGenerator.GetType().GetProperty("Password")!.GetValue(noteGenerator)!;
+                var noteApply = (Button)noteGenerator.GetType().GetProperty("ApplyButton", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(noteGenerator)!;
+                Assert((string)noteApply.Content == "Вставить в заметку", "The generator did not name the note as the destination");
+                Click(noteApply);
+                Assert(note.Text == "Synthetic note: " + notePassword && note.CaretIndex == note.Text.Length &&
+                    Control<PasswordBox>("PasswordField").Password == generated && status.Text == "Пароль вставлен в заметку. Сохраните запись.",
+                    "The generated password was not inserted into the note at the caret");
+                note.Text = noteBefore;
+                var passwordBox = Control<PasswordBox>("PasswordField");
+                passwordBox.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, 0, null, passwordBox) { RoutedEvent = Keyboard.GotKeyboardFocusEvent });
+            }
             var noSets = (Window)Call("CreateGeneratorWindow")!;
             var boxes = LogicalDescendants<CheckBox>(noSets).ToArray();
             Assert(boxes.Length == 5, "The generator must have five options");
@@ -398,7 +419,24 @@ internal static class Program
             Control<TextBox>("Search").Clear();
             Await((Task)Call("SaveChanges")!);
             Capture("text-editor");
-
+            // The generator of the header works for a text file too: the password replaces the selection in the text.
+            {
+                var fileText = Control<TextBox>("TextField");
+                string fileBefore = fileText.Text;
+                fileText.Select(0, 11);
+                var fileGenerator = (Window)Call("CreateGeneratorWindow")!;
+                string filePassword = (string)fileGenerator.GetType().GetProperty("Password")!.GetValue(fileGenerator)!;
+                var fileApply = (Button)fileGenerator.GetType().GetProperty("ApplyButton", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(fileGenerator)!;
+                Assert(Control<Button>("GeneratePasswordButton").IsEnabled && (string)fileApply.Content == "Вставить в текст",
+                    "The generator is not offered for a text file");
+                Click(fileApply);
+                Assert(fileText.Text == filePassword + fileBefore[11..] && fileText.CaretIndex == filePassword.Length &&
+                    Control<Button>("SaveButton").IsEnabled && status.Text == "Пароль вставлен в текст. Сохраните файл.",
+                    "The generated password did not replace the selection in the file text");
+                Assert(session.GetItem(session.Items.Single(item => item.Kind == ItemKind.Text).Id).Text == fileBefore, "Inserting a password saved the vault");
+                fileText.Undo();
+                Assert(fileText.Text == fileBefore && !Control<Button>("SaveButton").IsEnabled, "Ctrl+Z did not remove the inserted password");
+            }
             // "Heading" and "Separator" edit the text as typing does: unsaved draft, Ctrl+Z, the caret's line.
             var textField = Control<TextBox>("TextField");
             string savedText = textField.Text;

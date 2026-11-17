@@ -39,6 +39,15 @@
       <Path Width="16" Height="16" StrokeThickness="1.6" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
             Data="{StaticResource SearchIcon}"/>
      </Button>
+     <!-- Password generator for the open entry or text file: into "Password", or into the text at the caret. -->
+     <Button x:Name="GeneratePasswordButton" Style="{StaticResource Header}" Click="GeneratePasswordClick" Visibility="Collapsed" IsEnabled="False"
+             ToolTip="{DynamicResource Ui.163}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="{DynamicResource Ui.163}">
+      <StackPanel Orientation="Horizontal">
+       <Path Data="{StaticResource DiceIcon}" Width="16" Height="16" StrokeThickness="1.5" VerticalAlignment="Center"
+             Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+       <TextBlock x:Name="GeneratorLabel" Text="{DynamicResource Ui.228}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+      </StackPanel>
+     </Button>
      <StackPanel x:Name="VersionActions" Orientation="Horizontal" Visibility="Collapsed">
       <Button x:Name="SaveButton" Click="SaveClick" Style="{StaticResource HeaderPrimary}" IsEnabled="False"
               ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="{DynamicResource Ui.25}">
@@ -461,11 +470,6 @@
                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
            <TextBlock Text="{DynamicResource Ui.107}" Margin="6,0,0,0" VerticalAlignment="Center"/>
           </StackPanel>
-         </Button>
-         <Button x:Name="GeneratePasswordButton" DockPanel.Dock="Right" Style="{StaticResource FieldAction}" Padding="9,7" Click="GeneratePasswordClick"
-                 ToolTip="{DynamicResource Ui.162}" AutomationProperties.Name="{DynamicResource Ui.162}">
-          <Path Data="{StaticResource DiceIcon}" Width="16" Height="16" StrokeThickness="1.5" VerticalAlignment="Center"
-                Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
          </Button>
          <Button DockPanel.Dock="Right" x:Name="ShowPassword" Content="{DynamicResource Ui.30}" Click="ShowPasswordClick" Style="{StaticResource FieldAction}"/>
          <Grid><PasswordBox x:Name="PasswordField" PasswordChanged="PasswordChanged"/><TextBox x:Name="VisiblePassword" Visibility="Collapsed" TextChanged="VisiblePasswordChanged"/></Grid>

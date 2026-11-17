@@ -101,9 +101,9 @@ public partial class MainWindow
         Visibility wideOnly = compact ? Visibility.Collapsed : Visibility.Visible;
         Visibility compactOnly = compact ? Visibility.Visible : Visibility.Collapsed;
         ViewSwitch.Visibility = SaveShortcut.Visibility = SaveVersionButton.Visibility = LockLabel.Visibility =
-            FolderTitle.Visibility = wideOnly;
+            FolderTitle.Visibility = GeneratorLabel.Visibility = wideOnly;
         ExpandButton.Visibility = LockIcon.Visibility = BackButton.Visibility = CompactFolderPicker.Visibility = compactOnly;
-        LockButton.Style = (Style)FindResource(compact ? "HeaderIcon" : "Header");
+        LockButton.Style = GeneratePasswordButton.Style = (Style)FindResource(compact ? "HeaderIcon" : "Header");
         EditorFields.Margin = compact ? new Thickness(16, 14, 16, 14) : new Thickness(28, 22, 28, 22);
         ApplyAreas();
     }

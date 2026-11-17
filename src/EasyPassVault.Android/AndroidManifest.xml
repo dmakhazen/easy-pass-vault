@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No permissions on purpose: no network, no storage access. The vault is read only through the system
+     file picker, which grants access to the one file the user chose. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application
+      android:label="easy-pass-vault"
+      android:icon="@drawable/vault_icon"
+      android:theme="@style/AppTheme"
+      android:allowBackup="false"
+      android:fullBackupContent="false"
+      android:supportsRtl="true" />
+</manifest>

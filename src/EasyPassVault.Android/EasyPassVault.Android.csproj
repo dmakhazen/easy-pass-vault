@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Android viewer. Built only by scripts/Build-Apk.ps1: it needs the android workload, so it is not part of
+       EasyPassVault.slnx and the Windows release does not touch it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>EasyPassVault.Droid</RootNamespace>
+    <AssemblyName>EasyPassVault.Android</AssemblyName>
+    <ApplicationId>app.easypassvault</ApplicationId>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <RuntimeIdentifiers>android-arm64;android-arm</RuntimeIdentifiers>
+    <!-- The only source of the version is <Version> in the Windows app project. -->
+    <VaultVersionTag>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../EasyPassVault.App/EasyPassVault.App.csproj')), '&lt;Version&gt;\d+\.\d+\.\d+&lt;/Version&gt;').Value)</VaultVersionTag>
+    <Version>$(VaultVersionTag.Replace('&lt;Version&gt;', '').Replace('&lt;/Version&gt;', ''))</Version>
+    <VaultMajor>$([System.Version]::Parse('$(Version)').Major)</VaultMajor>
+    <VaultMinor>$([System.Version]::Parse('$(Version)').Minor)</VaultMinor>
+    <ApplicationDisplayVersion>$(VaultMajor).$(VaultMinor.PadLeft(2, '0'))</ApplicationDisplayVersion>
+    <ApplicationVersion>$([MSBuild]::Add($([MSBuild]::Multiply($(VaultMajor), 100)), $(VaultMinor)))</ApplicationVersion>
+    <!-- KeePassLib references System.Drawing.Common; its Windows-only helper assembly cannot be precompiled
+         for Android. The code runs under the JIT instead. -->
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(AllowScreenshots)' == 'true'">
+    <DefineConstants>$(DefineConstants);ALLOW_SCREENSHOTS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../EasyPassVault.Core/EasyPassVault.Core.csproj" />
+  </ItemGroup>
+</Project>

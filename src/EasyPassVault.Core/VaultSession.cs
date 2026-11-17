@@ -21,6 +21,7 @@ public sealed class VaultSession : IDisposable
     private byte[] fingerprint;
     private readonly AtomicVaultFile writer;
     private bool disposed;
+    private bool readOnly;
     public string FilePath { get; private set; }
     /// <summary>Size in bytes of the encrypted file as last read or written.</summary>
     public long FileSize => snapshot.Length;
@@ -59,6 +60,19 @@ public sealed class VaultSession : IDisposable
         byte[] bytes = AtomicVaultFile.Read(path);
         KdbxGuard.Validate(bytes);
         return new(path, Decode(bytes, MakeKey(password)), bytes, writer);
+    }
+
+    /// <summary>
+    /// Opens a vault from bytes the platform has already read (Android hands out a stream, not a path).
+    /// The session is for viewing only: every change is refused and nothing is ever written anywhere.
+    /// <paramref name="name"/> is the file name to show. The session takes ownership of <paramref name="bytes"/>.
+    /// </summary>
+    public static VaultSession OpenReadOnly(byte[] bytes, string name, string password)
+    {
+        if (bytes.Length is < 12 or > AtomicVaultFile.MaxFileBytes)
+            throw new VaultException("Недопустимый размер файла хранилища: он пустой или больше 512 МБ. Файл не расшифровывался и не изменён.");
+        KdbxGuard.Validate(bytes);
+        return new(name, Decode(bytes, MakeKey(password)), bytes, null) { readOnly = true };
     }
 
     private static CompositeKey MakeKey(string password)
@@ -305,6 +319,7 @@ public sealed class VaultSession : IDisposable
     private void Commit(Action<PwDatabase> change, bool newVersion = false)
     {
         ThrowIfDisposed();
+        if (readOnly) throw new VaultException("Хранилище открыто только для просмотра. Изменения не записаны.");
         // Work on a separate decrypted database. IO failure never commits UI edits in memory.
         PwDatabase candidate = Decode(snapshot, database.MasterKey);
         try

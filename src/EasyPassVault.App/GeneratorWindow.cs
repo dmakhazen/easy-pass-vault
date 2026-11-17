@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Media;
 using EasyPassVault.Core;
 
@@ -8,7 +9,8 @@ namespace EasyPassVault.App;
 
 /// <summary>
 /// The password generator (IdeaGenerator.dc.html): the password in large monospace, "generate again", strength,
-/// length 8–64 and the character sets. "Use in entry" raises <see cref="Applied"/>; the window never stores the password.
+/// length 8–64, the character sets and the line that says where the password will go. The main button raises
+/// <see cref="Applied"/>; the window never stores the password.
 /// </summary>
 internal sealed class GeneratorWindow : Window
 {
@@ -35,7 +37,9 @@ internal sealed class GeneratorWindow : Window
     public event Action<string>? Applied;
 
     /// <remarks>The caller sets <see cref="Window.Owner"/> before showing it.</remarks>
-    public GeneratorWindow(PasswordOptions options, Func<string, string> translate)
+    /// <param name="applyText">The text of the main button: it names where the password goes.</param>
+    /// <param name="destination">The same place in words, shown in the "Where" line.</param>
+    public GeneratorWindow(PasswordOptions options, Func<string, string> translate, string applyText, string destination)
     {
         T = translate;
         Options = options.Normalize();
@@ -111,9 +115,18 @@ internal sealed class GeneratorWindow : Window
         symbols.ToolTip = PasswordGenerator.SymbolSet;
         panel.Children.Add(sets);
 
+        var where = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13 };
+        where.Inlines.Add(new Run(T("Куда") + ": ") { Foreground = Muted });
+        where.Inlines.Add(new Run(destination) { FontWeight = FontWeights.SemiBold, Foreground = Hex("#1D5944") });
+        panel.Children.Add(new Border
+        {
+            Margin = new Thickness(0, 16, 0, 0), Padding = new Thickness(11, 9, 11, 9), CornerRadius = new CornerRadius(8),
+            Background = Hex("#EEF5F0"), BorderBrush = Hex("#C5DACE"), BorderThickness = new Thickness(1), Child = where
+        });
+
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         var cancel = new Button { Content = T("Отмена"), IsCancel = true, Margin = new Thickness(0), Padding = new Thickness(14, 8, 14, 8) };
-        apply.Content = T("Подставить в запись");
+        apply.Content = applyText;
         apply.Style = (Style)FindResource("Primary");
         apply.Margin = new Thickness(8, 0, 0, 0); apply.Padding = new Thickness(14, 8, 14, 8); apply.FontWeight = FontWeights.SemiBold;
         apply.IsDefault = true;

@@ -167,6 +167,26 @@ try
         Reject(() => VaultSession.Open(path, "Wrong-fictional-password").Dispose(), "Wrong password accepted");
         Check(before.SequenceEqual(File.ReadAllBytes(path)), "Wrong-password open modified file");
     });
+    Test("read-only session from bytes reads, refuses changes and wrong password", () =>
+    {
+        byte[] before = File.ReadAllBytes(path);
+        using (var viewer = VaultSession.OpenReadOnly(File.ReadAllBytes(path), "synthetic.kdbx", password))
+        {
+            // The first file of the series holds only the login entry.
+            Check(viewer.Items.Count == 1 && viewer.GetItem(loginId) == login, "Read-only session lost contents");
+            Reject(() => viewer.SaveItem(login with { Title = "Changed" }), "Read-only session accepted a save");
+            Reject(() => viewer.DeleteItem(loginId), "Read-only session accepted a deletion");
+            Reject(() => viewer.AddFolder("Synthetic"), "Read-only session accepted a new folder");
+            Check(viewer.GetItem(loginId) == login, "Refused change altered the read-only session");
+        }
+        Reject(() => VaultSession.OpenReadOnly(File.ReadAllBytes(path), "synthetic.kdbx", "Wrong-fictional-password").Dispose(),
+            "Read-only open accepted a wrong password");
+        Reject(() => VaultSession.OpenReadOnly(File.ReadAllBytes(path)[..200], "synthetic.kdbx", password).Dispose(),
+            "Read-only open accepted a truncated file");
+        Reject(() => VaultSession.OpenReadOnly(new byte[4], "synthetic.kdbx", password).Dispose(), "Read-only open accepted a tiny file");
+        Check(before.SequenceEqual(File.ReadAllBytes(path)) && !Directory.EnumerateFiles(root, "*.tmp").Any(),
+            "Read-only session touched the disk");
+    });
     Test("ciphertext tampering rejected", () =>
     {
         byte[] bytes = File.ReadAllBytes(path); bytes[^30] ^= 0x80;

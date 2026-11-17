@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
  <PropertyGroup>
-  <TargetFramework>net10.0-windows</TargetFramework>
+  <TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>
   <AssemblyName>KeePassLib.Standard</AssemblyName>
   <Nullable>disable</Nullable>
   <ImplicitUsings>disable</ImplicitUsings>
